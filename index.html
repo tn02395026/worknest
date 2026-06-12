@@ -7,6 +7,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
+  --dm:0;
+}
+[data-dark="1"]{
+  --bg:#1A2220;--bg2:#1F2B27;--white:#243028;
+  --sage:#5A8F6A;--sage2:#4A7A58;--sage3:#2A4A35;--sage4:#1E2D25;
+  --text:#D4E8D8;--text2:#9AB89E;--text3:#5A7A5E;
+  --border:#2A4A35;--border2:#3A5A45;
+  --blue:#4A7DC9;--blue-l:#1A2535;
+  --red:#C04A4A;--red-l:#2A1A1A;
+  --gray:#5A6E5C;--gray-l:#1E2820;
+  --shadow:0 2px 10px rgba(0,0,0,.3);
+  --shadow2:0 4px 20px rgba(0,0,0,.4);
+}
+:root{
   --bg:#F4F7F5;--bg2:#E8EFE9;--white:#FFF;
   --sage:#6B9E7A;--sage2:#8DB89A;--sage3:#C5DCCA;--sage4:#EDF5EF;
   --text:#2C3A2E;--text2:#5A6E5C;--text3:#9AB09C;
@@ -276,8 +290,15 @@ textarea{resize:vertical;min-height:140px}
     <div class="logo"><span class="logo-icon">🐾</span><span class="logo-text">宗宗的家</span></div>
     <div class="nav active" id="nav-projects"><span class="nav-icon">📋</span> 專案</div>
     <div class="nav" id="nav-stats"><span class="nav-icon">📊</span> 統計</div>
+    <div class="nav" id="nav-today"><span class="nav-icon">☀️</span> 今日待辦</div>
     <div class="nav" id="nav-diary"><span class="nav-icon">📔</span> 日誌查詢</div>
     <div class="nav" id="nav-settings"><span class="nav-icon">⚙️</span> 設定</div>
+    <div style="margin-top:auto;padding-top:1rem;border-top:1px solid var(--border)">
+      <div class="nav" id="btn-darkmode" style="justify-content:space-between">
+        <span><span class="nav-icon">🌙</span> 深色模式</span>
+        <div class="toggle-track" id="dark-toggle"><div class="toggle-knob"></div></div>
+      </div>
+    </div>
   </div>
   <div class="main">
     <div class="page active" id="page-projects">
@@ -313,6 +334,10 @@ textarea{resize:vertical;min-height:140px}
         <button class="btn btn-sm" id="stats-filter-btn">🔍 套用</button>
       </div>
       <div id="stats-content"></div>
+    </div>
+    <div class="page" id="page-today">
+      <div class="ph"><div class="pt">☀️ 今日待辦</div></div>
+      <div id="today-content"></div>
     </div>
     <div class="page" id="page-diary">
       <div class="ph"><div class="pt">📔 日誌查詢</div></div>
@@ -536,6 +561,10 @@ function initLogin(){
   const mascots=['🐶','🐱','🦜','🐰','😸','🐾'];
   document.getElementById('login-mascot').textContent=mascots[Math.floor(Math.random()*mascots.length)];
   // Check if already logged in
+  // Apply dark mode immediately before anything renders
+  if(localStorage.getItem('wn_dark')==='1'){
+    document.documentElement.setAttribute('data-dark','1');
+  }
   if(sessionStorage.getItem('wn_auth')==='ok'){
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
@@ -565,13 +594,149 @@ let curPage='projects';
 function goPage(pg){
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav').forEach(el=>el.classList.remove('active'));
-  document.getElementById('page-'+pg).classList.add('active');
-  document.getElementById('nav-'+pg).classList.add('active');
+  const pageEl=document.getElementById('page-'+pg);
+  const navEl=document.getElementById('nav-'+pg);
+  if(pageEl)pageEl.classList.add('active');
+  if(navEl)navEl.classList.add('active');
   curPage=pg;
   if(pg==='settings')renderSettings();
   if(pg==='diary')initDiary();
   if(pg==='stats')renderStatsPage();
+  if(pg==='today')renderToday();
   if(pg==='projects'){showList();renderTopStats();renderAlerts();renderProjects();}
+}
+
+// ── TODAY VIEW ────────────────────────────────────────
+function renderToday(){
+  const now=new Date();
+  const todayStr=TODAY;
+  const items=[];
+
+  G.projects.filter(p=>p.status==='active').forEach(p=>{
+    // Project followup today or overdue
+    if(p.followup&&p.followup<=todayStr){
+      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:p.followup<todayStr,pid:p.id});
+    }
+    // Todos today or overdue
+    (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followup<=todayStr).forEach(t=>{
+      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:t.followup<todayStr,pid:p.id,tid:t.id});
+    });
+  });
+
+  // Sort: overdue first, then by time
+  items.sort((a,b)=>{
+    if(a.overdue&&!b.overdue)return -1;
+    if(!a.overdue&&b.overdue)return 1;
+    return (a.date+a.time).localeCompare(b.date+b.time);
+  });
+
+  const overdue=items.filter(i=>i.overdue);
+  const today=items.filter(i=>!i.overdue);
+
+  let h='';
+
+  // Summary cards
+  h+=`<div class="stat-row" style="margin-bottom:1.2rem">
+    <div class="stat-card"><div class="stat-num" style="color:var(--red)">${overdue.length}</div><div class="stat-label">⚠️ 逾期未處理</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--sage)">${today.length}</div><div class="stat-label">☀️ 今日待辦</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${G.projects.filter(p=>p.status==='active').length}</div><div class="stat-label">🌱 進行中專案</div></div>
+  </div>`;
+
+  if(overdue.length){
+    h+=`<div style="font-size:12px;font-weight:800;color:var(--red);margin-bottom:8px;display:flex;align-items:center;gap:6px">⚠️ 逾期未處理<span style="flex:1;height:1px;background:var(--red-l);display:inline-block"></span></div>`;
+    overdue.forEach(item=>h+=todayItemHTML(item));
+  }
+
+  if(today.length){
+    h+=`<div style="font-size:12px;font-weight:800;color:var(--sage);margin:14px 0 8px;display:flex;align-items:center;gap:6px">☀️ 今天要做的<span style="flex:1;height:1px;background:var(--border);display:inline-block"></span></div>`;
+    today.forEach(item=>h+=todayItemHTML(item));
+  }
+
+  if(!items.length){
+    h+=`<div class="empty-state"><div class="empty-icon">🎉</div><p>今天沒有待辦事項！<br><small style="color:var(--text3)">好好休息或提早準備明天的工作</small></p></div>`;
+  }
+
+  document.getElementById('today-content').innerHTML=h;
+  // Bind click to open project
+  document.querySelectorAll('[data-open-proj]').forEach(el=>{
+    el.addEventListener('click',()=>{goPage('projects');openProject(parseInt(el.dataset.openProj));});
+  });
+  // Bind todo done
+  document.querySelectorAll('[data-done-todo]').forEach(el=>{
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      const pid=parseInt(el.dataset.pid);
+      const tid=el.dataset.tid;
+      const p=G.projects.find(x=>x.id===pid);
+      const t=p?.todos?.find(x=>x.id===tid);
+      if(!t)return;
+      openModal('確認完成日期',`<div class="form-row"><label class="form-label">完成日期</label><input type="date" id="td-done-date" value="${TODAY}"></div>`,
+      ()=>{t.done=true;t.doneDate=document.getElementById('td-done-date').value||TODAY;save();closeModal();renderToday();});
+    });
+  });
+}
+
+function todayItemHTML(item){
+  const ov=item.overdue;
+  return `<div style="background:var(--white);border-radius:var(--rsm);border:1.5px solid ${ov?'var(--red)':'var(--border)'};padding:11px 13px;margin-bottom:8px;cursor:pointer;transition:all .15s" data-open-proj="${item.pid}" class="pcard" style="">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:800;color:${ov?'var(--red)':'var(--sage)'};margin-bottom:3px">${ov?'⚠️ 逾期':'☀️ 今日'} · ${escH(item.proj.name)}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${escH(item.label)}</div>
+        ${item.time?`<div style="font-size:11px;color:var(--text3);margin-top:2px">🕐 ${item.date} ${item.time}</div>`:`<div style="font-size:11px;color:var(--text3);margin-top:2px">📅 ${item.date}</div>`}
+      </div>
+      ${item.type==='todo'?`<button class="btn btn-sm" data-done-todo="1" data-pid="${item.pid}" data-tid="${item.tid}" style="flex-shrink:0">✓ 完成</button>`:''}
+    </div>
+  </div>`;
+}
+
+// ── DARK MODE ─────────────────────────────────────────
+function initDarkMode(){
+  const isDark=localStorage.getItem('wn_dark')==='1';
+  if(isDark){
+    document.documentElement.setAttribute('data-dark','1');
+    const track=document.getElementById('dark-toggle');
+    if(track)track.classList.add('on');
+  }
+  const btn=document.getElementById('btn-darkmode');
+  if(btn){
+    btn.addEventListener('click',()=>{
+      const now=document.documentElement.getAttribute('data-dark')==='1';
+      document.documentElement.setAttribute('data-dark',now?'0':'1');
+      localStorage.setItem('wn_dark',now?'0':'1');
+      const track=document.getElementById('dark-toggle');
+      if(track)track.classList.toggle('on',!now);
+    });
+  }
+}
+
+// ── EXPORT / IMPORT ───────────────────────────────────
+function exportData(){
+  const data=JSON.stringify(G,null,2);
+  const blob=new Blob([data],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`worknest-backup-${TODAY}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.projects||!data.stages)return alert('檔案格式不正確，請確認是 WorkNest 的備份檔');
+      if(!confirm(`確定要匯入？這會覆蓋目前所有資料（共 ${data.projects.length} 個專案）`))return;
+      G=data;save();
+      alert('匯入成功！');
+      location.reload();
+    }catch(err){alert('匯入失敗：'+err.message);}
+  };
+  reader.readAsText(file);
+  input.value='';
 }
 
 // ── TOP STATS ─────────────────────────────────────
@@ -617,7 +782,16 @@ function renderProjects(){
   const search=(document.getElementById('proj-search').value||'').toLowerCase();
   const fy=document.getElementById('filter-year').value,fm=document.getElementById('filter-month').value;
   let list=G.projects.filter(p=>{
-    if(search&&!p.name.toLowerCase().includes(search))return false;
+    if(search){
+      const sd=p.sectionData||{};
+      const contactData=typeof sd['sec-contacts']==='object'?sd['sec-contacts']:{};
+      const contactText=Object.values(contactData).map(d=>Object.values(d||{}).join(' ')).join(' ').toLowerCase();
+      const logText=p.logs.map(l=>l.content).join(' ').toLowerCase();
+      const inName=p.name.toLowerCase().includes(search);
+      const inContact=contactText.includes(search);
+      const inLogs=logText.includes(search);
+      if(!inName&&!inContact&&!inLogs)return false;
+    }
     if(fy&&String(p.year||new Date().getFullYear())!==fy)return false;
     if(fm&&String(p.month||1)!==fm)return false;
     if(activeFilter==='全部')return true;
@@ -668,6 +842,7 @@ function cardHTML(p){
     ${attrSec&&attrSec.enabled!==false&&selAttrs.length?`<div class="card-attrs">${selAttrs.slice(0,3).map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div>`:''}
     <div class="prog-track" style="margin-top:5px"><div class="prog-fill" style="width:${pct}%;background:${st.color}"></div></div>
     <div class="prog-label"><span>${escH(st.name)}</span><span style="font-weight:800;color:${st.color}">${pct}%</span></div>
+    ${(()=>{const allItems=(p.checklist||[]).flatMap(s=>s.items||[]);const doneItems=allItems.filter(i=>i.done);return allItems.length?`<div style="margin-top:3px;display:flex;align-items:center;gap:5px"><div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;background:${doneItems.length===allItems.length?'var(--sage)':'var(--sage3)'};width:${Math.round(doneItems.length/allItems.length*100)}%;border-radius:2px"></div></div><span style="font-size:10px;color:var(--text3)">✅ ${doneItems.length}/${allItems.length}</span></div>`:''})()}
     ${sb}
     ${ov?`<div class="overdue-badge">🐾 追蹤日期已到！快去處理我！</div>`:''}
     <div class="card-meta">
@@ -1967,7 +2142,17 @@ function renderStatsPage(){
 // ── SETTINGS ──────────────────────────────────────
 let _dragFrom=null;
 function renderSettings(){
-  let h=`<div class="set-card"><div class="set-title">🗂️ 全局工作階段</div><div class="set-hint">拖曳調整順序，每個專案可在「🗂️ 階段」分頁獨立調整，不影響全局設定</div><div id="drag-stages">`;
+  let h=`<div class="set-card">
+    <div class="set-title">💾 資料備份</div>
+    <div class="set-hint">建議定期匯出備份，以防萬一</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-p btn-sm" onclick="exportData()">📤 匯出資料</button>
+      <button class="btn btn-sm" onclick="document.getElementById('import-file').click()">📥 匯入資料</button>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+    </div>
+    <div class="hint" style="margin-top:6px">匯出的 .json 檔案可以在其他裝置匯入還原所有資料</div>
+  </div>
+  <div class="set-card"><div class="set-title">🗂️ 全局工作階段</div><div class="set-hint">拖曳調整順序，每個專案可在「🗂️ 階段」分頁獨立調整，不影響全局設定</div><div id="drag-stages">`;
   G.stages.forEach((s,i)=>{
     h+=`<div class="drag-item" draggable="true" data-i="${i}"><span class="drag-handle">⠿</span><span class="color-dot" style="background:${s.color}"></span><span style="flex:1;font-size:13px;font-weight:700">${escH(s.name)}</span><span style="font-size:11px;color:var(--text3);padding:2px 8px;background:var(--bg2);border-radius:20px">${i+1}</span><button class="pill-rm" data-rm-stage="${s.id}">✕</button></div>`;
   });
@@ -2220,6 +2405,7 @@ function hideLoadingOverlay(){
 
 function startApp(){
   document.getElementById('nav-projects').addEventListener('click',()=>goPage('projects'));
+  document.getElementById('nav-today').addEventListener('click',()=>goPage('today'));
   document.getElementById('nav-stats').addEventListener('click',()=>goPage('stats'));
   document.getElementById('nav-diary').addEventListener('click',()=>goPage('diary'));
   document.getElementById('nav-settings').addEventListener('click',()=>goPage('settings'));
@@ -2234,7 +2420,7 @@ function startApp(){
   document.getElementById('stats-filter-btn').addEventListener('click',renderStatsPage);
   document.getElementById('lightbox').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
   document.getElementById('lb-close').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
-  renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();
+  renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();initDarkMode();
 } // end startApp
 
 document.addEventListener('DOMContentLoaded',()=>initLogin());

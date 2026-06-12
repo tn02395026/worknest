@@ -96,7 +96,10 @@ textarea{resize:vertical;min-height:140px}
 .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:11px}
 .pcard{background:var(--white);border-radius:var(--r);border:1.5px solid var(--border);padding:.95rem 1rem;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
 .pcard:hover{border-color:var(--sage);transform:translateY(-2px);box-shadow:var(--shadow2)}
-.pcard.overdue{border-left:4px solid var(--red)}.pcard.closed{opacity:.70;background:var(--gray-l)}.pcard.lost{border-left:4px solid var(--gray);background:var(--gray-l)}
+.pcard.overdue{border-left:4px solid var(--red);background:linear-gradient(135deg,#fff5f5 0%,#ffffff 100%)}
+.pcard.overdue::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:repeating-linear-gradient(90deg,var(--red) 0px,var(--red) 8px,transparent 8px,transparent 16px)}
+.overdue-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red);color:white;font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;animation:wiggle .6s ease-in-out infinite;margin-top:4px}
+@keyframes wiggle{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}.pcard.closed{opacity:.70;background:var(--gray-l)}.pcard.lost{border-left:4px solid var(--gray);background:var(--gray-l)}
 .card-mascot{position:absolute;top:9px;right:9px;font-size:19px;cursor:pointer;transition:transform .3s;user-select:none}
 .pcard:hover .card-mascot{transform:rotate(15deg) scale(1.2)}
 .card-del{position:absolute;top:7px;right:36px;font-size:12px;cursor:pointer;opacity:0;transition:opacity .2s;background:var(--red-l);border:none;border-radius:4px;color:var(--red);padding:2px 5px;font-weight:700}
@@ -560,7 +563,9 @@ function renderTopStats(){
 }
 function renderAlerts(){
   const od=G.projects.filter(p=>isOD(p.followup)&&p.status==='active');
-  document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red">🐾 有 ${od.length} 個專案追蹤日期已逾期！</div>`:'';
+  const alertMsgs=['快去看看我！','我在等你哦！','別忘了我～','拜託處理我！'];
+  const alertMsg=alertMsgs[Math.floor(Date.now()/5000)%alertMsgs.length];
+  document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="animation:wiggle .8s ease-in-out infinite">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
 }
 function renderYearFilter(){
   const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
@@ -639,8 +644,9 @@ function cardHTML(p){
     <div class="prog-track" style="margin-top:5px"><div class="prog-fill" style="width:${pct}%;background:${st.color}"></div></div>
     <div class="prog-label"><span>${escH(st.name)}</span><span style="font-weight:800;color:${st.color}">${pct}%</span></div>
     ${sb}
+    ${ov?`<div class="overdue-badge">🐾 追蹤日期已到！快去處理我！</div>`:''}
     <div class="card-meta">
-      ${p.followup?`<span style="${ov?'color:var(--red);font-weight:700':''}">📅 ${p.followup}${p.followupTime?' '+p.followupTime:''}${ov?' ⚠':''}</span>`:''}
+      ${p.followup?`<span style="${ov?'color:var(--red);font-weight:700':''}">📅 ${p.followup}${p.followupTime?' '+p.followupTime:''}${ov?' ⏰':''}</span>`:''}
       ${p.price?`<span>💰 NT$${escH(p.price)}</span>`:''}
       ${p.source?`<span>👥 ${escH(p.source)}</span>`:''}
     </div>
@@ -1843,7 +1849,7 @@ function renderDiary(){
     dg[date].forEach(r=>{
       html+=`<div class="diary-item">
         <div class="diary-proj" data-pid="${r.pId}">📋 ${escH(r.pName)}</div>
-        <div style="font-size:13px;line-height:1.6">${escH(r.content)}</div>
+        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escH(r.content)}</div>
         ${r.attrs&&r.attrs.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">${r.attrs.map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div>`:''}
       </div>`;
     });

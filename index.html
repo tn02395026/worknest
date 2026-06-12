@@ -1334,10 +1334,13 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
     </div>`;
   // Render basic fields in pairs
   const bfPairs=[];
-  for(let i=0;i<bfs.length;i+=2){
-    if(bfs[i].type==='remind'){bfPairs.push([bfs[i]]);i++;i--;continue;}
-    bfPairs.push(bfs[i+1]?[bfs[i],bfs[i+1]]:[bfs[i]]);
-    if(bfs[i+1])i++;
+  let _bfi=0;
+  while(_bfi<bfs.length){
+    const f=bfs[_bfi];
+    if(f.type==='remind'){bfPairs.push([f]);_bfi++;continue;}
+    const next=bfs[_bfi+1];
+    if(next&&next.type!=='remind'){bfPairs.push([f,next]);_bfi+=2;}
+    else{bfPairs.push([f]);_bfi++;}
   }
   bfPairs.forEach(pair=>{
     const f=pair[0];
@@ -1347,7 +1350,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
       pair.forEach(f2=>h+=renderBFInput(f2,p));
       h+='</div>';
     } else {
-      h+=`<div class="form-row">${renderBFInput(f,p).replace('<div>','').replace('</div>','')}</div>`;
+      h+=renderBFInput(f,p);
     }
   });
   h+=`</div>`;
@@ -1457,11 +1460,11 @@ function renderBFInput(f,p){
   const val=(f.key&&p[f.key]!==undefined)?String(p[f.key]||''):String((p.customBasicFields||{})[f.id]||'');
   const years=[];for(let y=2020;y<=2035;y++)years.push(y);
   const lbl=`<label class="form-label">${escH(f.label)}</label>`;
-  if(f.type==='date')return`<div>${lbl}<input type="date" id="bf-${f.id}" value="${escH(val)}"></div>`;
-  if(f.type==='time')return`<div>${lbl}<input type="time" id="bf-${f.id}" value="${escH(val)}"></div>`;
-  if(f.type==='year')return`<div>${lbl}<select id="bf-${f.id}">${years.map(y=>`<option value="${y}" ${Number(val||new Date().getFullYear())===y?'selected':''}>${y}年</option>`).join('')}</select></div>`;
-  if(f.type==='month')return`<div>${lbl}<select id="bf-${f.id}">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${Number(val||new Date().getMonth()+1)===m?'selected':''}>${m}月</option>`).join('')}</select></div>`;
-  return`<div>${lbl}<input type="text" id="bf-${f.id}" value="${escH(val)}"></div>`;
+  if(f.type==='date')return`<div class="form-row">${lbl}<input type="date" id="bf-${f.id}" value="${escH(val)}"></div>`;
+  if(f.type==='time')return`<div class="form-row">${lbl}<input type="time" id="bf-${f.id}" value="${escH(val)}"></div>`;
+  if(f.type==='year')return`<div class="form-row">${lbl}<select id="bf-${f.id}">${years.map(y=>`<option value="${y}" ${Number(val||new Date().getFullYear())===y?'selected':''}>${y}年</option>`).join('')}</select></div>`;
+  if(f.type==='month')return`<div class="form-row">${lbl}<select id="bf-${f.id}">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${Number(val||new Date().getMonth()+1)===m?'selected':''}>${m}月</option>`).join('')}</select></div>`;
+  return`<div class="form-row">${lbl}<input type="text" id="bf-${f.id}" value="${escH(val)}"></div>`;
 }
 
 // ── FORM SECTION HELPERS ──────────────────────────

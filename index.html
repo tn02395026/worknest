@@ -960,7 +960,7 @@ function paneLogs(p,secs){
     const i=p.logs.length-1-ri;
     h+=`<div class="log-item">
       <div class="log-hdr"><div class="log-date">📅 ${l.date}</div><div style="display:flex;gap:4px"><button class="ibtn" data-action="edit-log" data-i="${i}">✏️</button><button class="ibtn" data-action="rm-log" data-i="${i}" style="color:var(--red)">✕</button></div></div>
-      <div class="log-content">${escH(l.content)}</div>
+      <div class="log-content" style="white-space:pre-wrap">${escH(l.content)}</div>
       ${l.attrs&&l.attrs.length?`<div class="log-tags">${l.attrs.map(a=>`<span class="log-tag">${escH(a)}</span>`).join('')}</div>`:''}
       ${l.followup?`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-top:5px">🔔 ${l.followup}${l.followupTime?' '+l.followupTime:''}</div>`:''}
     </div>`;
@@ -976,7 +976,7 @@ function paneNotes(p){
     const i=p.notes.length-1-ri;
     h+=`<div class="note-item">
       <div class="note-hdr"><div class="log-date">📅 ${n.date}</div><div style="display:flex;gap:4px"><button class="ibtn" data-action="edit-note" data-i="${i}">✏️</button><button class="ibtn" data-action="rm-note" data-i="${i}" style="color:var(--red)">✕</button></div></div>
-      <div style="font-size:13px;line-height:1.6">${escH(n.text)}</div>
+      <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escH(n.text)}</div>
       ${n.files&&n.files.length?`<div class="note-files">${n.files.map(f=>f.type==='image'?`<img class="thumb" src="${f.data}" data-action="lightbox" data-src="${f.data}">`:` <div class="file-chip" data-action="dl-file" data-name="${f.name}" data-src="${f.data}">📎 ${escH(f.name)}</div>`).join('')}</div>`:''}
     </div>`;
   });

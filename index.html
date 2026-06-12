@@ -237,6 +237,22 @@ textarea{resize:vertical;min-height:140px}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* RICH TEXT EDITOR */
+.rte-wrap{border:1.5px solid var(--border);border-radius:var(--rxs);background:var(--sage4);overflow:hidden}
+.rte-wrap:focus-within{border-color:var(--sage);background:white}
+.rte-toolbar{display:flex;gap:2px;padding:5px 7px;border-bottom:1px solid var(--border);background:var(--white);flex-wrap:wrap}
+.rte-btn{padding:3px 7px;border:1.5px solid transparent;border-radius:4px;background:none;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text2);line-height:1;transition:all .15s}
+.rte-btn:hover{background:var(--sage4);border-color:var(--border)}
+.rte-btn.active{background:var(--sage);color:white;border-color:var(--sage)}
+.rte-btn.bold{font-weight:800}
+.rte-btn.italic{font-style:italic}
+.rte-btn.underline{text-decoration:underline}
+.rte-colors{display:flex;gap:3px;align-items:center;margin-left:4px;padding-left:6px;border-left:1px solid var(--border)}
+.rte-color{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.rte-color:hover,.rte-color.active{border-color:var(--text);transform:scale(1.2)}
+.rte-editor{min-height:120px;padding:9px 11px;font-size:13px;font-family:'Nunito','Noto Sans TC',sans-serif;line-height:1.7;outline:none;color:var(--text)}
+.rte-editor:empty:before{content:attr(data-placeholder);color:var(--text3)}
 </style>
 </head>
 <body>
@@ -565,7 +581,7 @@ function renderAlerts(){
   const od=G.projects.filter(p=>isOD(p.followup)&&p.status==='active');
   const alertMsgs=['快去看看我！','我在等你哦！','別忘了我～','拜託處理我！'];
   const alertMsg=alertMsgs[Math.floor(Date.now()/5000)%alertMsgs.length];
-  document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="animation:wiggle .8s ease-in-out infinite">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
+  document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
 }
 function renderYearFilter(){
   const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
@@ -966,7 +982,7 @@ function paneLogs(p,secs){
     const i=p.logs.length-1-ri;
     h+=`<div class="log-item">
       <div class="log-hdr"><div class="log-date">📅 ${l.date}</div><div style="display:flex;gap:4px"><button class="ibtn" data-action="edit-log" data-i="${i}">✏️</button><button class="ibtn" data-action="rm-log" data-i="${i}" style="color:var(--red)">✕</button></div></div>
-      <div class="log-content" style="white-space:pre-wrap">${escH(l.content)}</div>
+      <div class="log-content" style="white-space:pre-wrap;line-height:1.7">${textToHTML(l.content)}</div>
       ${l.attrs&&l.attrs.length?`<div class="log-tags">${l.attrs.map(a=>`<span class="log-tag">${escH(a)}</span>`).join('')}</div>`:''}
       ${l.followup?`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-top:5px">🔔 ${l.followup}${l.followupTime?' '+l.followupTime:''}</div>`:''}
     </div>`;
@@ -982,7 +998,7 @@ function paneNotes(p){
     const i=p.notes.length-1-ri;
     h+=`<div class="note-item">
       <div class="note-hdr"><div class="log-date">📅 ${n.date}</div><div style="display:flex;gap:4px"><button class="ibtn" data-action="edit-note" data-i="${i}">✏️</button><button class="ibtn" data-action="rm-note" data-i="${i}" style="color:var(--red)">✕</button></div></div>
-      <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escH(n.text)}</div>
+      <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${textToHTML(n.text)}</div>
       ${n.files&&n.files.length?`<div class="note-files">${n.files.map(f=>f.type==='image'?`<img class="thumb" src="${f.data}" data-action="lightbox" data-src="${f.data}">`:` <div class="file-chip" data-action="dl-file" data-name="${f.name}" data-src="${f.data}">📎 ${escH(f.name)}</div>`).join('')}</div>`:''}
     </div>`;
   });
@@ -1167,6 +1183,51 @@ function openTodoModal(pid,editIdx,secs){
 }
 
 // ── LOG MODAL ─────────────────────────────────────
+// ── RICH TEXT EDITOR ────────────────────────────────
+const RTE_COLORS=['#2C3A2E','#E05C5C','#5B8DD9','#6B9E7A','#E8926A','#9B7FD4','#C9973A','#8E9E90'];
+
+function buildRTE(id,placeholder,initHTML){
+  return `<div class="rte-wrap">
+    <div class="rte-toolbar">
+      <button class="rte-btn bold" type="button" onmousedown="event.preventDefault();document.execCommand('bold')" title="粗體"><b>B</b></button>
+      <button class="rte-btn italic" type="button" onmousedown="event.preventDefault();document.execCommand('italic')" title="斜體"><i>I</i></button>
+      <button class="rte-btn underline" type="button" onmousedown="event.preventDefault();document.execCommand('underline')" title="底線"><u>U</u></button>
+      <button class="rte-btn" type="button" onmousedown="event.preventDefault();document.execCommand('fontSize',false,'4')" title="大字" style="font-size:15px;font-weight:700">A↑</button>
+      <button class="rte-btn" type="button" onmousedown="event.preventDefault();document.execCommand('fontSize',false,'2')" title="小字" style="font-size:11px">A↓</button>
+      <div class="rte-colors">
+        ${RTE_COLORS.map(col=>`<div class="rte-color" style="background:${col}" onmousedown="event.preventDefault();document.execCommand('foreColor',false,'${col}')" title="${col}"></div>`).join('')}
+        <button class="rte-btn" type="button" onmousedown="event.preventDefault();document.execCommand('removeFormat')" title="清除格式" style="margin-left:2px;font-size:11px">✕</button>
+      </div>
+    </div>
+    <div class="rte-editor" id="${id}" contenteditable="true" data-placeholder="${placeholder}">${initHTML||''}</div>
+  </div>`;
+}
+
+function getRTEValue(id){
+  const el=document.getElementById(id);
+  if(!el)return'';
+  // Return innerHTML but clean it up
+  return el.innerHTML.replace(/<div>/gi,'\n').replace(/<\/div>/gi,'').replace(/<br\s*\/?>/gi,'\n').trim();
+}
+
+function getRTEHTML(id){
+  const el=document.getElementById(id);
+  return el?el.innerHTML:'';
+}
+
+function setRTEValue(id,html){
+  const el=document.getElementById(id);
+  if(el)el.innerHTML=html||'';
+}
+
+// Convert plain text with \n to HTML for display
+function textToHTML(text){
+  if(!text)return'';
+  // If already has HTML tags, return as-is
+  if(/<[a-z][\s\S]*>/i.test(text))return text;
+  return escH(text).replace(/\n/g,'<br>');
+}
+
 function openLogModal(pid,idx,secs){
   const p=G.projects.find(x=>x.id===pid);
   const effSecs=secs||getEffSecs(p);
@@ -1175,7 +1236,7 @@ function openLogModal(pid,idx,secs){
   const log=idx!==null&&idx!==undefined?p.logs[idx]:{date:TODAY,content:'',attrs:[],followup:'',followupTime:'',remindBeforeN:'',remindBeforeUnit:'min'};
   openModal(idx!==null&&idx!==undefined?'編輯工作紀錄':'新增工作紀錄',`
     <div class="form-row"><label class="form-label">日期</label><input type="date" id="m-log-date" value="${log.date||TODAY}"></div>
-    <div class="form-row"><label class="form-label">工作內容</label><textarea id="m-log-content" placeholder="今天做了什麼？">${escH(log.content||'')}</textarea></div>
+    <div class="form-row"><label class="form-label">工作內容</label>${buildRTE('m-log-content','今天做了什麼？',log.content||'')}</div>
     ${attrOpts.length?`<div class="form-row"><label class="form-label">${escH(attrSec.label)}（可多選）</label><div class="tag-sel" id="m-log-attrs">${attrOpts.map(a=>`<button class="topt ${(log.attrs||[]).includes(a)?'sel':''}">${escH(a)}</button>`).join('')}</div></div>`:''}
     <div class="form-grid">
       <div><label class="form-label">下次追蹤日期</label><input type="date" id="m-log-fu" value="${log.followup||''}"></div>
@@ -1183,7 +1244,7 @@ function openLogModal(pid,idx,secs){
     </div>
     ${remindBeforeHTML(log.remindBeforeN,log.remindBeforeUnit)}`,
   ()=>{
-    const content=document.getElementById('m-log-content').value.trim();if(!content)return;
+    const content=getRTEHTML('m-log-content').trim();if(!content||content==='<br>')return;
     const attrs=[...document.querySelectorAll('#m-log-attrs .topt.sel')].map(b=>b.textContent.trim());
     const fu=document.getElementById('m-log-fu').value,fut=document.getElementById('m-log-fu-time').value;
     const rv=getRemindVals();
@@ -1204,13 +1265,13 @@ function openNoteModal(pid,idx){
   const prevHTML=()=>_tmpFiles.map(f=>f.type==='image'?`<img src="${f.data}" style="width:58px;height:58px;object-fit:cover;border-radius:7px">`:` <div style="font-size:12px;padding:4px 8px;background:var(--sage4);border-radius:5px;border:1px solid var(--border)">📎 ${escH(f.name)}</div>`).join('');
   openModal(idx!==null&&idx!==undefined?'編輯備註':'新增備註',`
     <div class="form-row"><label class="form-label">日期</label><input type="date" id="m-note-date" value="${n.date||TODAY}"></div>
-    <div class="form-row"><label class="form-label">備註內容</label><textarea id="m-note-text">${escH(n.text||'')}</textarea></div>
+    <div class="form-row"><label class="form-label">備註內容</label>${buildRTE('m-note-text','與業主達成的共識、重要決定...',n.text||'')}</div>
     <div class="form-row"><label class="form-label">附件</label>
       <button class="btn btn-sm" id="m-note-upbtn">📎 上傳圖片/檔案</button>
       <input type="file" id="m-note-file" accept="image/*,.pdf,.doc,.docx" multiple style="display:none">
       <div id="m-note-prev" style="display:flex;flex-wrap:wrap;gap:7px;margin-top:7px">${prevHTML()}</div></div>`,
   ()=>{
-    const text=document.getElementById('m-note-text').value.trim();if(!text)return;
+    const text=getRTEHTML('m-note-text').trim();if(!text||text==='<br>')return;
     const note={id:Date.now(),date:document.getElementById('m-note-date').value||TODAY,text,files:[..._tmpFiles]};
     if(idx!==null&&idx!==undefined)p.notes[idx]=note;else p.notes.push(note);
     save();closeModal();renderDetail();
@@ -1849,7 +1910,7 @@ function renderDiary(){
     dg[date].forEach(r=>{
       html+=`<div class="diary-item">
         <div class="diary-proj" data-pid="${r.pId}">📋 ${escH(r.pName)}</div>
-        <div style="font-size:13px;line-height:1.6;white-space:pre-wrap">${escH(r.content)}</div>
+        <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${textToHTML(r.content)}</div>
         ${r.attrs&&r.attrs.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px">${r.attrs.map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div>`:''}
       </div>`;
     });

@@ -481,7 +481,13 @@ G.projects.forEach(p=>{
   if(!p.customBasicFields)p.customBasicFields={};
 });
 
-const save=()=>localStorage.setItem('zz5_data',JSON.stringify(G));
+const save=()=>{
+  localStorage.setItem('zz5_data',JSON.stringify(G));
+  // Sync to Firestore (fire and forget)
+  try{
+    DOC_REF.set(JSON.parse(JSON.stringify(G))).catch(e=>console.warn('Firestore sync error:',e));
+  }catch(e){console.warn('Firestore save error:',e);}
+};
 const isOD=d=>d&&d<TODAY;
 const stageById=id=>G.stages.find(s=>s.id===id)||{name:id,color:'#6B9E7A'};
 const randMascot=()=>MASCOTS[Math.floor(Math.random()*MASCOTS.length)];
@@ -2094,6 +2100,46 @@ function doSnoozeCustom(uid){
 
 // ── INIT ──────────────────────────────────────────
 function initApp(){
+  // Try to load from Firestore first, fall back to localStorage
+  showLoadingOverlay();
+  DOC_REF.get().then(doc=>{
+    if(doc.exists){
+      const remoteData=doc.data();
+      if(remoteData&&remoteData.projects){
+        G=remoteData;
+        // Ensure all projects have required fields
+        G.projects.forEach(p=>{
+          if(!p.sectionData)p.sectionData={};
+          if(!p.projSections)p.projSections=null;
+          if(p.projStageIds===undefined)p.projStageIds=null;
+          if(!p.customBasicFields)p.customBasicFields={};
+        });
+        if(!G.tabOrder)G.tabOrder=['info','contacts','stages','checklist','todos','logs','notes'];
+        if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
+        localStorage.setItem('zz5_data',JSON.stringify(G));
+      }
+    }
+    hideLoadingOverlay();
+    startApp();
+  }).catch(err=>{
+    console.warn('Firestore load failed, using localStorage:',err);
+    hideLoadingOverlay();
+    startApp();
+  });
+}
+
+function showLoadingOverlay(){
+  const div=document.createElement('div');
+  div.id='loading-overlay';
+  div.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:8000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;font-size:14px;font-weight:700;color:var(--text2)';
+  div.innerHTML='<div style="font-size:40px;animation:bounce 1s ease infinite">🐾</div><div>載入中...</div>';
+  document.body.appendChild(div);
+}
+function hideLoadingOverlay(){
+  const el=document.getElementById('loading-overlay');if(el)el.remove();
+}
+
+function startApp(){
   document.getElementById('nav-projects').addEventListener('click',()=>goPage('projects'));
   document.getElementById('nav-stats').addEventListener('click',()=>goPage('stats'));
   document.getElementById('nav-diary').addEventListener('click',()=>goPage('diary'));
@@ -2110,9 +2156,27 @@ function initApp(){
   document.getElementById('lightbox').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
   document.getElementById('lb-close').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
   renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();
-}
+} // end startApp
 
 document.addEventListener('DOMContentLoaded',()=>initLogin());
 </script>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCXfJJTBKhBNgNPH7mHjYn-aOYUiGL5WBI",
+    authDomain: "worknest-ea4ce.firebaseapp.com",
+    projectId: "worknest-ea4ce",
+    storageBucket: "worknest-ea4ce.firebasestorage.app",
+    messagingSenderId: "257805066733",
+    appId: "1:257805066733:web:3215d4056ee191be2f87e4"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const DOC_REF = db.collection('worknest').doc('data');
+</script>
+
 </body>
 </html>

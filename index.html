@@ -535,10 +535,19 @@ function getProjStages(p){
 function initLogin(){
   const mascots=['🐶','🐱','🦜','🐰','😸','🐾'];
   document.getElementById('login-mascot').textContent=mascots[Math.floor(Math.random()*mascots.length)];
+  // Check if already logged in
+  if(sessionStorage.getItem('wn_auth')==='ok'){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app').style.display='block';
+    initApp();
+    return;
+  }
+
   function doLogin(){
     const u=(document.getElementById('login-user').value||'').trim();
     const p=(document.getElementById('login-pass').value||'').trim();
     if(u==='tn02395026'&&p==='gn02395026'){
+      sessionStorage.setItem('wn_auth','ok');
       document.getElementById('login-screen').style.display='none';
       document.getElementById('app').style.display='block';
       initApp();

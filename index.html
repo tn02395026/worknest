@@ -257,10 +257,10 @@ body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:v
 .btn-danger{color:var(--red);border-color:var(--red)}.btn-danger:hover{background:var(--red-l)}
 /* INPUTS */
 input[type=text],input[type=date],input[type=time],input[type=number],input[type=email],input[type=tel],select,textarea{
-  padding:8px 11px;border-radius:var(--rxs);border:1.5px solid var(--border);font-size:13px;font-family:inherit;background:var(--sage4);color:var(--text);width:100%}
+  padding:8px 11px;border-radius:var(--rxs);border:1.5px solid var(--border);font-size:13px;font-family:inherit;background:var(--sage4);color:var(--text);width:100%;position:relative;z-index:10}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--sage);background:white}
 textarea{resize:vertical;min-height:140px}
-.form-section{margin-bottom:1.2rem;padding-bottom:1rem;border-bottom:1px dashed var(--border)}
+.form-section{margin-bottom:1.2rem;padding-bottom:1rem;border-bottom:1px dashed var(--border);overflow:visible}
 .form-section:last-child{border-bottom:none;margin-bottom:0}
 .form-stitle{font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
 .form-row{margin-bottom:9px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px}
@@ -333,7 +333,7 @@ textarea{resize:vertical;min-height:140px}
 .modal-title{font-size:15px;font-weight:800}
 .modal-close{background:none;border:none;font-size:19px;cursor:pointer;color:var(--text3);padding:2px 5px;border-radius:5px}
 .modal-close:hover{background:var(--sage4)}
-.modal-body{padding:1.1rem 1.4rem;max-height:70vh;overflow-y:auto}
+.modal-body{padding:1.1rem 1.4rem;max-height:70vh;overflow-y:auto;overflow-x:visible}
 .modal-footer{padding:.9rem 1.4rem;border-top:1.5px solid var(--border);display:flex;gap:7px;justify-content:flex-end}
 /* DETAIL */
 .d-back{display:flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;font-weight:700;padding:0;margin-bottom:.9rem;font-family:inherit}
@@ -2324,6 +2324,14 @@ function saveProjForm(isEdit,oldP){
   G.basicFieldDefs=JSON.parse(JSON.stringify(_editBFs));
   if(isEdit){const idx=G.projects.findIndex(x=>x.id===oldP.id);G.projects[idx]=proj;}
   else G.projects.push(proj);
+  // Clear old dismissed alarms for this project so new time fires
+  if(proj.followup&&proj.followup.trim()){
+    const oldAid='proj-'+proj.id+'-'+(isEdit?oldP.followup:'')+((isEdit?oldP.followupTime:''));
+    _shownAlarms.delete(oldAid);_dismissedAlarms.delete(oldAid);
+    const existing=JSON.parse(localStorage.getItem('wn_shown_alarms')||'[]');
+    const filtered=existing.filter(a=>!a.startsWith('proj-'+proj.id+'-'));
+    localStorage.setItem('wn_shown_alarms',JSON.stringify(filtered));
+  }
   save();closeModal();renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();
   if(isEdit){curPid=proj.id;renderDetail();}
   scheduleAlarmCheck();
@@ -2562,11 +2570,19 @@ function closeModal(){document.getElementById('modal-ov').classList.remove('open
 // ── ALARM ─────────────────────────────────────────
 let _alarmTimer=null;
 // Persist shown alarms across page reloads
-const _shownAlarms=new Set(JSON.parse(localStorage.getItem('wn_shown_alarms')||'[]'));
-function _saveShownAlarms(){
-  // Only keep alarms from last 7 days to prevent localStorage bloat
-  const arr=[..._shownAlarms];
-  localStorage.setItem('wn_shown_alarms',JSON.stringify(arr.slice(-200)));
+// Alarms dismissed by user (persisted) - won't re-fire ever
+const _dismissedAlarms=new Set(JSON.parse(localStorage.getItem('wn_shown_alarms')||'[]'));
+// Alarms shown this session (in memory only) - re-fires on reload if not dismissed
+const _shownAlarms=new Set([..._dismissedAlarms]);
+function _saveShownAlarms(aid){
+  // Only persist when user explicitly dismisses
+  if(aid){
+    const existing=JSON.parse(localStorage.getItem('wn_shown_alarms')||'[]');
+    if(!existing.includes(aid)){
+      existing.push(aid);
+      localStorage.setItem('wn_shown_alarms',JSON.stringify(existing.slice(-500)));
+    }
+  }
 }
 function getRemindMs(n,u){if(!n)return 0;return parseInt(n)*(u==='hr'?3600000:60000);}
 function getTriggerTime(followup,followupTime,rn,ru){
@@ -2597,13 +2613,13 @@ function checkAlarms(){
         if(diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
     });
   });
-  items.forEach(item=>{_shownAlarms.add(item.id);_saveShownAlarms();showAlarmPopup(item);});
+  items.forEach(item=>{_shownAlarms.add(item.id);showAlarmPopup(item);});
 }
 function showAlarmPopup(item){
   const container=document.getElementById('alarm-container');
   const mascot=ALARM_MASCOTS[Math.floor(Math.random()*ALARM_MASCOTS.length)];
   const uid='ap'+Date.now()+Math.floor(Math.random()*9999);
-  const div=document.createElement('div');div.className='alarm-popup';div.id=uid;
+  const div=document.createElement('div');div.className='alarm-popup';div.id=uid;div.dataset.aid=item.id;
   div.innerHTML=`<div class="alarm-top"><span class="alarm-mascot">${mascot}</span></div>
     <div class="alarm-body">
       <div class="alarm-title">⏰ 提醒時間到了！</div>
@@ -2625,7 +2641,15 @@ function showAlarmPopup(item){
     </div>`;
   container.appendChild(div);
 }
-function dismissAlarm(uid){const el=document.getElementById(uid);if(el)el.remove();}
+function dismissAlarm(uid){
+  const el=document.getElementById(uid);
+  if(el){
+    // Find the alarm id from the element and persist it
+    const aid=el.dataset.aid;
+    if(aid){_saveShownAlarms(aid);}
+    el.remove();
+  }
+}
 function toggleSnooze(uid){const sp=document.getElementById('sp-'+uid);if(sp)sp.style.display=sp.style.display==='flex'?'none':'flex';}
 function doSnooze(uid,mins){
   const proj=document.getElementById(uid)?.querySelector('.alarm-msg b')?.textContent||'';

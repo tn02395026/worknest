@@ -2561,7 +2561,13 @@ function closeModal(){document.getElementById('modal-ov').classList.remove('open
 
 // ── ALARM ─────────────────────────────────────────
 let _alarmTimer=null;
-const _shownAlarms=new Set();
+// Persist shown alarms across page reloads
+const _shownAlarms=new Set(JSON.parse(localStorage.getItem('wn_shown_alarms')||'[]'));
+function _saveShownAlarms(){
+  // Only keep alarms from last 7 days to prevent localStorage bloat
+  const arr=[..._shownAlarms];
+  localStorage.setItem('wn_shown_alarms',JSON.stringify(arr.slice(-200)));
+}
 function getRemindMs(n,u){if(!n)return 0;return parseInt(n)*(u==='hr'?3600000:60000);}
 function getTriggerTime(followup,followupTime,rn,ru){
   if(!followup||!followupTime||!followupTime.includes(':'))return null;
@@ -2591,7 +2597,7 @@ function checkAlarms(){
         if(diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
     });
   });
-  items.forEach(item=>{_shownAlarms.add(item.id);showAlarmPopup(item);});
+  items.forEach(item=>{_shownAlarms.add(item.id);_saveShownAlarms();showAlarmPopup(item);});
 }
 function showAlarmPopup(item){
   const container=document.getElementById('alarm-container');

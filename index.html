@@ -999,12 +999,12 @@ function renderToday(){
 
   G.projects.filter(p=>p.status==='active').forEach(p=>{
     // Project followup today or overdue
-    if(p.followup&&(p.followup<todayStr||(p.followup===todayStr&&isOD(p.followup,p.followupTime)))){
-      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:isOD(p.followup,p.followupTime),pid:p.id});
+    if(p.followup&&p.followup<=todayStr){
+      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:p.followup<todayStr||(p.followup===todayStr&&isOD(p.followup,p.followupTime)),pid:p.id});
     }
     // Todos today or overdue
-    (p.todos||[]).filter(t=>!t.done&&t.followup&&(t.followup<todayStr||(t.followup===todayStr&&isOD(t.followup,t.followupTime)))).forEach(t=>{
-      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:isOD(t.followup,t.followupTime),pid:p.id,tid:t.id});
+    (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followup<=todayStr).forEach(t=>{
+      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:t.followup<todayStr||(t.followup===todayStr&&isOD(t.followup,t.followupTime)),pid:p.id,tid:t.id});
     });
   });
 

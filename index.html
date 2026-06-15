@@ -7,10 +7,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#F4F7F5;--bg2:#E8EFE9;--white:#FFF;
-  --sage:#6B9E7A;--sage2:#8DB89A;--sage3:#C5DCCA;--sage4:#EDF5EF;
-  --text:#2C3A2E;--text2:#5A6E5C;--text3:#9AB09C;
-  --border:#D0E0D3;--border2:#B8CEB8;
+  --bg:#E8EDE9;--bg2:#DAE3DB;--white:#F2F6F3;
+  --sage:#5A8F69;--sage2:#7AAA87;--sage3:#B5CEB9;--sage4:#DDE8DF;
+  --text:#243226;--text2:#4A5E4C;--text3:#849E87;
+  --border:#BACED0;--border2:#A4BCA7;
   --blue:#5B8DD9;--blue-l:#E8F1FB;
   --red:#E05C5C;--red-l:#FDEAEA;
   --warm:#E8926A;--purple:#9B7FD4;--yellow:#C9973A;
@@ -419,8 +419,8 @@ textarea{resize:vertical;min-height:140px}
 .toggle-knob{width:14px;height:14px;border-radius:50%;background:white;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle-track.on .toggle-knob{left:16px}
 /* ALARM */
-#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9000;display:flex;flex-direction:column-reverse;gap:9px;max-width:290px}
-.alarm-popup{background:var(--white);border-radius:var(--r);border:2px solid var(--sage);box-shadow:var(--shadow2);width:290px;animation:slideUp .3s ease;overflow:hidden}
+#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9999;display:flex;flex-direction:column-reverse;gap:9px;max-width:320px;pointer-events:none}
+.alarm-popup{background:var(--white);border-radius:var(--r);border:2px solid var(--sage);box-shadow:var(--shadow2);width:310px;animation:slideUp .3s ease;overflow:hidden;pointer-events:all}
 .alarm-top{background:linear-gradient(135deg,var(--sage),var(--sage2));padding:11px 15px;text-align:center}
 .alarm-mascot{font-size:34px;display:block;animation:bounce 1s ease infinite}
 .alarm-body{padding:11px 15px}
@@ -2546,9 +2546,12 @@ let _alarmTimer=null;
 const _shownAlarms=new Set();
 function getRemindMs(n,u){if(!n)return 0;return parseInt(n)*(u==='hr'?3600000:60000);}
 function getTriggerTime(followup,followupTime,rn,ru){
-  if(!followup||!followupTime)return null;
-  const base=new Date(followup+'T'+followupTime);
-  return new Date(base.getTime()-getRemindMs(rn,ru));
+  if(!followup||!followupTime||!followupTime.includes(':'))return null;
+  try{
+    const base=new Date(followup+'T'+followupTime+':00');
+    if(isNaN(base.getTime()))return null;
+    return new Date(base.getTime()-getRemindMs(rn,ru));
+  }catch(e){return null;}
 }
 function scheduleAlarmCheck(){if(_alarmTimer)clearInterval(_alarmTimer);_alarmTimer=setInterval(checkAlarms,20000);checkAlarms();}
 function checkAlarms(){

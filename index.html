@@ -2598,6 +2598,15 @@ function openManageBasicFields(){
     _editBFs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
     rebuildBasicFieldsWrap();
+    // Auto-save projBasicFields to current project immediately
+    if(curPid){
+      const p=G.projects.find(x=>x.id===curPid);
+      if(p){
+        p.projBasicFields=JSON.parse(JSON.stringify(_editBFs));
+        save();
+        console.log('Auto-saved projBasicFields, fields='+JSON.stringify(_editBFs.map(f=>f.label)));
+      }
+    }
   });
   setTimeout(bindBFDrag,80);
 }

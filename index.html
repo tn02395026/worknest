@@ -224,19 +224,7 @@
 [data-dark="1"] .snooze-opt{background:#2D3340;border-color:#363D4A;color:#C5D0DC}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-/* LOGIN */
-#login-screen{position:fixed;inset:0;background:var(--bg);transition:background .3s;display:flex;align-items:center;justify-content:center;z-index:9999}
-.login-box{background:var(--white);border-radius:24px;padding:2.5rem 2rem;box-shadow:var(--shadow2);width:320px;text-align:center}
-.login-mascot{font-size:58px;margin-bottom:.5rem;animation:bounce 2s ease-in-out infinite}
-.login-title{font-size:20px;font-weight:800;margin-bottom:.2rem}
-.login-sub{font-size:13px;color:var(--text3);margin-bottom:1.5rem}
-.login-field{margin-bottom:10px;text-align:left}
-.login-field label{font-size:12px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px}
-.login-field input{width:100%;padding:10px 13px;border-radius:var(--rsm);border:1.5px solid var(--border);font-size:14px;font-family:inherit;background:var(--sage4)}
-.login-field input:focus{outline:none;border-color:var(--sage);background:white}
-.login-btn{width:100%;padding:11px;background:var(--sage);color:white;border:none;border-radius:var(--rsm);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px}
-.login-btn:hover{background:var(--sage2)}
-.login-err{color:var(--red);font-size:12px;margin-top:8px;display:none}
+
 /* LAYOUT */
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:200px;background:var(--white);border-right:1.5px solid var(--border);display:flex;flex-direction:column;padding:1.2rem .9rem;z-index:100;box-shadow:var(--shadow)}
 .logo{display:flex;align-items:center;gap:8px;margin-bottom:1.4rem;padding:0 4px}
@@ -460,21 +448,10 @@ textarea{resize:vertical;min-height:140px}
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login-screen">
-  <div class="login-box">
-    <div class="login-mascot" id="login-mascot">🐾</div>
-    <div class="login-title">宗宗的家</div>
-    <div class="login-sub">工作追蹤系統 · 請先登入</div>
-    <div class="login-field"><label>帳號</label><input type="text" id="login-user" placeholder="輸入帳號" autocomplete="username"></div>
-    <div class="login-field"><label>密碼</label><input type="password" id="login-pass" placeholder="輸入密碼" autocomplete="current-password"></div>
-    <button class="login-btn" id="login-btn">登入 ✨</button>
-    <div class="login-err" id="login-err">帳號或密碼錯誤，請再試一次 🐾</div>
-  </div>
-</div>
+
 
 <!-- APP -->
-<div id="app" style="display:none">
+<div id="app">
   <div class="sidebar">
     <div class="logo"><span class="logo-icon">🐾</span><span class="logo-text">宗宗的家</span></div>
     <div class="nav active" id="nav-projects"><span class="nav-icon">📋</span> 專案</div>
@@ -978,37 +955,7 @@ function rmCertPrice(pid,i){
   closeModal();openCertPrices(pid);
 }
 
-function initLogin(){
-  const mascots=['🐶','🐱','🦜','🐰','😸','🐾'];
-  document.getElementById('login-mascot').textContent=mascots[Math.floor(Math.random()*mascots.length)];
-  // Check if already logged in
-  // Apply dark mode immediately before anything renders
-  if(localStorage.getItem('wn_dark')==='1'){
-    document.documentElement.setAttribute('data-dark','1');
-  }
-  if(sessionStorage.getItem('wn_auth')==='ok'){
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app').style.display='block';
-    initApp();
-    return;
-  }
 
-  function doLogin(){
-    const u=(document.getElementById('login-user').value||'').trim();
-    const p=(document.getElementById('login-pass').value||'').trim();
-    if(u==='tn02395026'&&p==='gn02395026'){
-      sessionStorage.setItem('wn_auth','ok');
-      document.getElementById('login-screen').style.display='none';
-      document.getElementById('app').style.display='block';
-      initApp();
-    } else {
-      document.getElementById('login-err').style.display='block';
-    }
-  }
-  document.getElementById('login-btn').addEventListener('click',doLogin);
-  document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-  document.getElementById('login-user').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-pass').focus();});
-}
 
 // ── NAV ───────────────────────────────────────────
 let curPage='projects';
@@ -3149,7 +3096,7 @@ function startApp(){
   renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();initDarkMode();
 } // end startApp
 
-document.addEventListener('DOMContentLoaded',()=>initLogin());
+document.addEventListener('DOMContentLoaded',()=>{if(localStorage.getItem('wn_dark')==='1'){document.documentElement.setAttribute('data-dark','1');}initApp();});
 </script>
 
 <!-- Firebase SDK -->

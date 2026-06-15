@@ -1411,13 +1411,7 @@ function paneInfo(p,secs){
     ${p.status==='closed'&&p.closedDate?r('✅ 結案日期',p.closedDate,''):''}
     ${p.status==='lost'&&p.lostDate?r('❌ 流標日期',p.lostDate,''):''}
     ${infoSec&&infoSec.enabled!==false?(infoSec.items||[]).filter(f=>infoVals[f.id]).map(f=>r(f.label,infoVals[f.id]||'',`inlineEditSD(${p.id},'sec-info','${f.id}','${escH(infoVals[f.id]||'')}','${escH(f.label)}')`)).join(''):''}
-    ${(()=>{
-      const _bfDefs=p.projBasicFields||G.basicFieldDefs||[];
-      return _bfDefs.filter(f=>!f.key&&(p.customBasicFields||{})[f.id]).map(f=>{
-        const _v=(p.customBasicFields||{})[f.id]||'';
-        return '<div><div class=\"info-label\">'+escH(f.label)+'</div><div class=\"info-value\" onclick=\"inlineEditCBF('+p.id+',&apos;'+f.id+'&apos;,&apos;'+escH(_v)+'&apos;)\">'+escH(_v)+'</div></div>';
-      }).join('');
-    })()}
+    ${(()=>{const _bfd=p.projBasicFields||G.basicFieldDefs||[];return _bfd.filter(f=>!f.key&&(p.customBasicFields||{})[f.id]).map(f=>{const _v=(p.customBasicFields||{})[f.id]||'';return `<div><div class="info-label">${escH(f.label)}</div><div class="info-value" onclick="inlineEditCBF(${p.id},'${f.id}','${escH(_v)}')">${escH(_v)}</div></div>`;}).join('');})()}
   </div>
   ${(p.certPrices||[]).length?`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:6px">💰 分項報價</div><div style="display:flex;flex-direction:column;gap:4px">${(p.certPrices||[]).map(cp=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:var(--sage4);border-radius:var(--rxs);border:1px solid var(--border)"><span style="font-size:12px;font-weight:700;color:var(--text2)">${escH(cp.certName||'')}</span><span style="font-size:12px;font-weight:700;color:var(--sage)">NT$ ${Number(String(cp.amount||'0').replace(/,/g,'')).toLocaleString()}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;padding:5px 9px;border-top:1px dashed var(--border);margin-top:2px"><span style="font-size:12px;font-weight:800;color:var(--text2)">合計</span><span style="font-size:13px;font-weight:800;color:var(--sage)">NT$ ${(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0).toLocaleString()}</span></div></div></div>`:''}`;
   if(attrSec&&attrSec.enabled!==false&&selAttrs.length)h+=`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:5px">${escH(attrSec.label)}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${selAttrs.map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div></div>`;

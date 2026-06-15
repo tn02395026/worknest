@@ -522,6 +522,12 @@ textarea{resize:vertical;min-height:140px}
           <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
           <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
         </select>
+        <select class="filter-sel" id="rev-status">
+          <option value="">全部狀態</option>
+          <option value="active">🌱 進行中</option>
+          <option value="closed">✅ 結案</option>
+          <option value="lost">❌ 流標</option>
+        </select>
         <button class="btn btn-sm btn-p" id="rev-filter-btn">🔍 套用</button>
       </div>
       <div id="rev-content"></div>
@@ -780,9 +786,11 @@ function getProjStages(p){
 function renderRevenuePage(){
   const selYear=document.getElementById('rev-year')?.value||'';
   const selMonth=document.getElementById('rev-month')?.value||'';
+  const selStatus=document.getElementById('rev-status')?.value||'';
   let projs=G.projects.filter(p=>{
     if(selYear&&String(p.year||new Date().getFullYear())!==selYear)return false;
     if(selMonth&&String(p.month||1)!==selMonth)return false;
+    if(selStatus&&p.status!==selStatus)return false;
     return true;
   });
   const getAmt=p=>{
@@ -793,6 +801,7 @@ function renderRevenuePage(){
   const totalAmt=projs.reduce((s,p)=>s+getAmt(p),0);
   const activeAmt=projs.filter(p=>p.status==='active').reduce((s,p)=>s+getAmt(p),0);
   const closedAmt=projs.filter(p=>p.status==='closed').reduce((s,p)=>s+getAmt(p),0);
+  const lostAmt=projs.filter(p=>p.status==='lost').reduce((s,p)=>s+getAmt(p),0);
   const chartYear=parseInt(selYear)||new Date().getFullYear();
   const monthlyData=Array.from({length:12},(_,i)=>{
     const m=i+1;
@@ -870,6 +879,7 @@ function renderRevenuePage(){
     +'<div class="stat-card"><div class="stat-num" style="color:var(--blue)">NT$ '+fmtN(totalAmt)+'</div><div class="stat-label">📊 篩選總報價</div></div>'
     +'<div class="stat-card"><div class="stat-num" style="color:var(--sage)">NT$ '+fmtN(activeAmt)+'</div><div class="stat-label">🌱 進行中</div></div>'
     +'<div class="stat-card"><div class="stat-num" style="color:var(--gray)">NT$ '+fmtN(closedAmt)+'</div><div class="stat-label">✅ 結案</div></div>'
+    +'<div class="stat-card"><div class="stat-num" style="color:var(--red)">NT$ '+fmtN(lostAmt)+'</div><div class="stat-label">❌ 流標</div></div>'
     +'<div class="stat-card"><div class="stat-num">'+projs.length+'</div><div class="stat-label">📋 專案數</div></div>'
     +'</div>'
     +'<div class="analytics-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
@@ -2083,6 +2093,39 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
   });
   h+=`</div></div>`;
 
+  // ── CERT PRICES SECTION ──────────────────────
+  {
+    const secs2=getEffSecs(p||{sectionData:{}});
+    const certSec2=secs2.find(s=>s.id==='sec-certs');
+    const selCerts2=Array.isArray(p?.sectionData?.['sec-certs'])?p.sectionData['sec-certs']:[];
+    const certPrices=p?.certPrices||[];
+    let cpH='<div class="form-section"><div class="form-stitle">💰 分項報價<span class="hint" style="font-size:10px;margin-left:8px">自動加總為報價金額</span></div>';
+    if(selCerts2.length){
+      cpH+='<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">';
+      selCerts2.forEach(cert=>{
+        const cp=certPrices.find(x=>x.certName===cert);
+        cpH+='<div style="display:flex;align-items:center;gap:5px;background:var(--sage4);border:1.5px solid var(--border);border-radius:var(--rsm);padding:5px 9px">'
+          +'<span style="font-size:12px;font-weight:700;color:var(--text2);min-width:50px">'+escH(cert)+'</span>'
+          +'<input type="text" id="cp-amt-'+escH(cert)+'" value="'+(cp?cp.amount:'')+'" placeholder="金額" style="width:110px">'
+          +'</div>';
+      });
+      cpH+='</div>';
+    }
+    // Custom cert prices not in selCerts
+    const extraCPs=certPrices.filter(cp=>!selCerts2.includes(cp.certName));
+    if(extraCPs.length){
+      extraCPs.forEach(cp=>{
+        cpH+='<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">'
+          +'<input type="text" id="cp-name-'+escH(cp.certName)+'" value="'+escH(cp.certName)+'" placeholder="名稱" style="flex:1">'
+          +'<input type="text" id="cp-amt-'+escH(cp.certName)+'" value="'+(cp.amount||'')+'" placeholder="金額" style="width:110px">'
+          +'</div>';
+      });
+    }
+    cpH+='<div class="add-row"><input type="text" id="cp-new-name" placeholder="自訂認證名稱"><input type="text" id="cp-new-amt" placeholder="金額" style="width:110px"><button class="btn btn-sm" onclick="addCPRowInForm()">＋</button></div>'
+      +'<div class="hint">填寫後儲存，金額加總自動更新報價欄位</div></div>';
+    h+=cpH;
+  }
+
   // ── TEMPLATE SELECTOR (new only) ──────────────
   if(!isEdit){h+=`<div class="form-section"><div class="form-stitle">📐 選擇公版</div><div id="pf-tpl-list">${tplH}</div></div>`;}
 
@@ -2454,6 +2497,54 @@ function rmContactFieldForm(ri,fi){
 }
 
 // Manage basic fields
+function addCPRowInForm(){
+  const name=document.getElementById('cp-new-name')?.value?.trim();if(!name)return;
+  const amt=document.getElementById('cp-new-amt')?.value?.trim()||'';
+  const container=document.querySelector('[id^="cp-amt-"]')?.closest('.form-section');
+  if(!container)return;
+  const addRow=document.querySelector('#cp-new-name').closest('.add-row');
+  const div=document.createElement('div');
+  div.style.cssText='display:flex;align-items:center;gap:5px;margin-bottom:5px';
+  div.innerHTML='<input type="text" id="cp-name-'+escH(name)+'" value="'+escH(name)+'" placeholder="名稱" style="flex:1">'
+    +'<input type="text" id="cp-amt-'+escH(name)+'" value="'+escH(amt)+'" placeholder="金額" style="width:110px">';
+  addRow.parentNode.insertBefore(div,addRow);
+  document.getElementById('cp-new-name').value='';
+  document.getElementById('cp-new-amt').value='';
+}
+
+function rebuildBasicFieldsWrap(){
+  const bfSection=document.getElementById('basic-fields-wrap');
+  if(!bfSection)return;
+  // Collect current values
+  const tmpP={remindBeforeN:'',remindBeforeUnit:'min',customBasicFields:{}};
+  _editBFs.forEach(f=>{
+    if(f.type==='remind')return;
+    if(f.type==='time'){if(f.key)tmpP[f.key]=getTimeSelectVal('bf-'+f.id);return;}
+    const el=document.getElementById('bf-'+f.id);
+    if(!el)return;
+    if(f.key)tmpP[f.key]=el.value||'';
+    else tmpP.customBasicFields[f.label]=el.value||'';
+  });
+  const rv=getRemindVals();tmpP.remindBeforeN=rv.n;tmpP.remindBeforeUnit=rv.u;
+  // Rebuild
+  const years=[];for(let y=2020;y<=2035;y++)years.push(y);
+  let h='';
+  const pairs=[];let bi=0;
+  while(bi<_editBFs.length){
+    const f=_editBFs[bi];
+    if(f.type==='remind'){pairs.push([f]);bi++;continue;}
+    const nxt=_editBFs[bi+1];
+    if(nxt&&nxt.type!=='remind'){pairs.push([f,nxt]);bi+=2;}else{pairs.push([f]);bi++;}
+  }
+  pairs.forEach(pair=>{
+    const f=pair[0];
+    if(f.type==='remind'){h+=remindBeforeHTML(tmpP.remindBeforeN,tmpP.remindBeforeUnit);return;}
+    if(pair.length===2){h+='<div class="form-grid">'+pair.map(f2=>renderBFInput(f2,tmpP)).join('')+'</div>';}
+    else{h+=renderBFInput(f,tmpP);}
+  });
+  bfSection.innerHTML=h;
+}
+
 function openManageBasicFields(){
   const bfs=_editBFs;
   let _bfDrag=null;
@@ -2486,39 +2577,9 @@ function openManageBasicFields(){
     <div id="bfd-list">${buildRows()}</div>
     <div class="add-row" style="margin-top:8px"><input type="text" id="new-bf-label" placeholder="新欄位名稱，例：本案佣金"><button class="btn btn-sm btn-p" onclick="addBF()">＋ 新增</button></div>`,
   ()=>{
-    // Save all current labels
     bfs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
-    // Refresh the basic fields in the parent form
-    const bfSection=document.getElementById('basic-fields-wrap');
-    if(bfSection){
-      // Re-read current values from form before rebuilding
-      const tmpP={};
-      _editBFs.forEach(f=>{
-        if(f.type==='remind')return;
-        if(f.type==='time'){tmpP[f.key||f.id]=getTimeSelectVal('bf-'+f.id);return;}
-        const el2=document.getElementById('bf-'+f.id);
-        if(el2){if(f.key)tmpP[f.key]=el2.value;else{if(!tmpP.customBasicFields)tmpP.customBasicFields={};tmpP.customBasicFields[f.label]=el2.value;}}
-      });
-      // Rebuild form
-      const years=[];for(let y=2020;y<=2035;y++)years.push(y);
-      let h='';
-      const bfPairs=[];let _bfi2=0;
-      while(_bfi2<_editBFs.length){
-        const f=_editBFs[_bfi2];
-        if(f.type==='remind'){bfPairs.push([f]);_bfi2++;continue;}
-        const next=_editBFs[_bfi2+1];
-        if(next&&next.type!=='remind'){bfPairs.push([f,next]);_bfi2+=2;}
-        else{bfPairs.push([f]);_bfi2++;}
-      }
-      bfPairs.forEach(pair=>{
-        const f=pair[0];
-        if(f.type==='remind'){h+=remindBeforeHTML(tmpP.remindBeforeN||'',tmpP.remindBeforeUnit||'min');return;}
-        if(pair.length===2){h+='<div class="form-grid">'+pair.map(f2=>renderBFInput(f2,tmpP)).join('')+'</div>';}
-        else{h+=renderBFInput(f,tmpP);}
-      });
-      bfSection.innerHTML=h;
-    }
+    rebuildBasicFieldsWrap();
   });
   setTimeout(rebind,80);
 }
@@ -2580,7 +2641,7 @@ function saveProjForm(isEdit,oldP){
     followup:bfVals['followup']||'',followupTime:bfVals['followupTime']||'',
     remindBeforeN:rv.n,remindBeforeUnit:rv.u,
     contactDate:bfVals['contactDate']||TODAY,
-    price:bfVals['price']||'',source:bfVals['source']||'',
+    price:autoPrice||bfVals['price']||'',source:bfVals['source']||'',
     year:parseInt(bfVals['year'])||new Date().getFullYear(),
     month:parseInt(bfVals['month'])||new Date().getMonth()+1,
     templateId:_selTpl||G.templates[0]?.id,
@@ -2591,10 +2652,25 @@ function saveProjForm(isEdit,oldP){
     projSections:JSON.parse(JSON.stringify(_editSecs)),
     customBasicFields:customBF,
     projBasicFields:JSON.parse(JSON.stringify(_editBFs)),
+    certPrices:newCertPrices,
     todos:isEdit?oldP.todos:[],
     checklist:isEdit?oldP.checklist:buildCL(_selTpl),
     notes:isEdit?oldP.notes:[],logs:isEdit?oldP.logs:[]
   };
+  // Collect cert prices from form
+  const newCertPrices=[];
+  document.querySelectorAll('[id^="cp-amt-"]').forEach(inp=>{
+    const certName=inp.id.replace('cp-amt-','');
+    const amount=inp.value.trim();
+    if(certName&&amount)newCertPrices.push({id:'cp-'+certName,certName,amount,note:''});
+  });
+  // Auto-calculate total if cert prices exist
+  let autoPrice='';
+  if(newCertPrices.length>0){
+    const total=newCertPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
+    if(total>0)autoPrice=total.toLocaleString();
+  }
+
   // Save basic fields to this project only (not global)
   if(isEdit){const idx=G.projects.findIndex(x=>x.id===oldP.id);G.projects[idx]=proj;}
   else G.projects.push(proj);

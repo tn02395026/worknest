@@ -20,15 +20,21 @@
   --r:14px;--rsm:9px;--rxs:6px;
 }
 [data-dark="1"]{
-  --bg:#1A2220;--bg2:#1F2B27;--white:#243028;
-  --sage:#5A8F6A;--sage2:#4A7A58;--sage3:#2A4A35;--sage4:#1E2D25;
-  --text:#D4E8D8;--text2:#9AB89E;--text3:#5A7A5E;
-  --border:#2A4A35;--border2:#3A5A45;
-  --blue:#4A7DC9;--blue-l:#1A2535;
-  --red:#C04A4A;--red-l:#2A1A1A;
-  --gray:#5A6E5C;--gray-l:#1E2820;
-  --shadow:0 2px 10px rgba(0,0,0,.3);
-  --shadow2:0 4px 20px rgba(0,0,0,.4);
+  /* 柔和深色 - 類似 Notion/Bear 的深色模式 */
+  --bg:#25292E;--bg2:#2C3138;--white:#2F353C;
+  --sage:#72B084;--sage2:#5A9A6E;--sage3:#3A5A42;--sage4:#2A3830;
+  --text:#E8EDF0;--text2:#B8C4CC;--text3:#7A8F9A;
+  --border:#3A4450;--border2:#4A5560;
+  --blue:#6A9FD4;--blue-l:#1E2D3A;
+  --red:#D46A6A;--red-l:#2D1E1E;
+  --warm:#D4926A;--purple:#A080D4;--yellow:#C4A040;
+  --gray:#6A7A80;--gray-l:#2A3038;
+  --shadow:0 2px 10px rgba(0,0,0,.25);
+  --shadow2:0 4px 20px rgba(0,0,0,.35);
+}
+[data-dark="1"] body{color:var(--text)}
+[data-dark="1"] input,[data-dark="1"] select,[data-dark="1"] textarea{
+  color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -1344,14 +1350,24 @@ function openContactEditModal(pid,roleId,secs){
 
 // ── REMIND BEFORE ─────────────────────────────────
 function remindBeforeHTML(rn,ru){
-  return `<div class="form-row"><label class="form-label">提前提醒（選填）</label>
-    <div style="display:flex;gap:6px;align-items:center">
-      <input type="number" id="m-remind-n" value="${rn||''}" min="1" max="999" style="width:80px" placeholder="數字">
-      <select id="m-remind-unit" style="flex:1">
-        <option value="min" ${!ru||ru==='min'?'selected':''}>分鐘前</option>
-        <option value="hr" ${ru==='hr'?'selected':''}>小時前</option>
-      </select>
-    </div><div class="hint">不填則在設定時間準時提醒</div></div>`;
+  const remindOpts=[
+    {v:'',l:'不提前提醒'},
+    {v:'5|min',l:'5 分鐘前'},{v:'10|min',l:'10 分鐘前'},{v:'15|min',l:'15 分鐘前'},
+    {v:'30|min',l:'30 分鐘前'},{v:'60|min',l:'1 小時前'},{v:'120|min',l:'2 小時前'},
+    {v:'1|hr',l:'1 小時前'},{v:'2|hr',l:'2 小時前'},{v:'24|hr',l:'1 天前'}
+  ];
+  const curVal=rn?(rn+'|'+(ru||'min')):'';
+  return `<div class="form-row"><label class="form-label">提前提醒</label>
+    <select id="m-remind-sel">
+      ${remindOpts.map(o=>`<option value="${o.v}" ${curVal===o.v||(!curVal&&!o.v)?'selected':''}>${o.l}</option>`).join('')}
+    </select>
+  </div>`;
+}
+function getRemindVals(){
+  const sel=document.getElementById('m-remind-sel');
+  if(!sel||!sel.value)return{n:'',u:'min'};
+  const [n,u]=sel.value.split('|');
+  return{n:n||'',u:u||'min'};
 }
 function getRemindVals(){return{n:document.getElementById('m-remind-n')?.value||'',u:document.getElementById('m-remind-unit')?.value||'min'};}
 
@@ -1368,13 +1384,13 @@ function openTodoModal(pid,editIdx,secs){
     <div class="form-row"><label class="form-label">待辦內容</label><input type="text" id="m-todo-label" value="${escH(t.label||'')}" placeholder="自訂待辦"></div>
     <div class="form-grid">
       <div><label class="form-label">追蹤日期</label><input type="date" id="m-todo-date" value="${t.followup||''}"></div>
-      <div><label class="form-label">追蹤時間</label><input type="time" id="m-todo-time" value="${t.followupTime||''}"></div>
+      <div><label class="form-label">追蹤時間</label>${buildTimeSelect('m-todo-time',t.followupTime||'')}</div>
     </div>
     ${remindBeforeHTML(t.remindBeforeN,t.remindBeforeUnit)}`,
   ()=>{
     const v=document.getElementById('m-todo-label').value.trim();if(!v)return;
     const rv=getRemindVals();
-    const newT={id:isEdit?t.id:'t'+Date.now(),label:v,followup:document.getElementById('m-todo-date').value,followupTime:document.getElementById('m-todo-time').value,remindBeforeN:rv.n,remindBeforeUnit:rv.u,done:isEdit?t.done:false,doneDate:isEdit?t.doneDate:''};
+    const newT={id:isEdit?t.id:'t'+Date.now(),label:v,followup:document.getElementById('m-todo-date').value,followupTime:getTimeSelectVal('m-todo-time'),remindBeforeN:rv.n,remindBeforeUnit:rv.u,done:isEdit?t.done:false,doneDate:isEdit?t.doneDate:''};
     if(isEdit)p.todos[editIdx]=newT;else p.todos.push(newT);
     save();closeModal();renderDetail();scheduleAlarmCheck();
   });
@@ -1431,6 +1447,32 @@ function textToHTML(text){
   return escH(text).replace(/\n/g,'<br>');
 }
 
+
+// ── TIME SELECT HELPERS ──────────────────────────────
+function buildTimeSelect(id, val){
+  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  const mins=['00','05','10','15','20','25','30','35','40','45','50','55'];
+  const [hVal='',mVal='']=(val||'').split(':');
+  return `<div style="display:flex;gap:4px;align-items:center">
+    <select id="${id}-h" style="flex:1">
+      <option value="">時</option>
+      ${hours.map(h=>`<option value="${h}" ${hVal===h?'selected':''}>${h}時</option>`).join('')}
+    </select>
+    <span style="color:var(--text3);font-weight:700">:</span>
+    <select id="${id}-m" style="flex:1">
+      <option value="">分</option>
+      ${mins.map(m=>`<option value="${m}" ${mVal===m?'selected':''}>${m}分</option>`).join('')}
+    </select>
+  </div>`;
+}
+
+function getTimeSelectVal(id){
+  const h=document.getElementById(id+'-h')?.value||'';
+  const m=document.getElementById(id+'-m')?.value||'';
+  if(!h&&!m)return'';
+  return`${h||'00'}:${m||'00'}`;
+}
+
 function openLogModal(pid,idx,secs){
   const p=G.projects.find(x=>x.id===pid);
   const effSecs=secs||getEffSecs(p);
@@ -1443,13 +1485,13 @@ function openLogModal(pid,idx,secs){
     ${attrOpts.length?`<div class="form-row"><label class="form-label">${escH(attrSec.label)}（可多選）</label><div class="tag-sel" id="m-log-attrs">${attrOpts.map(a=>`<button class="topt ${(log.attrs||[]).includes(a)?'sel':''}">${escH(a)}</button>`).join('')}</div></div>`:''}
     <div class="form-grid">
       <div><label class="form-label">下次追蹤日期</label><input type="date" id="m-log-fu" value="${log.followup||''}"></div>
-      <div><label class="form-label">追蹤時間</label><input type="time" id="m-log-fu-time" value="${log.followupTime||''}"></div>
+      <div><label class="form-label">追蹤時間</label>${buildTimeSelect('m-log-fu-time',log.followupTime||'')}</div>
     </div>
     ${remindBeforeHTML(log.remindBeforeN,log.remindBeforeUnit)}`,
   ()=>{
     const content=getRTEHTML('m-log-content').trim();if(!content||content==='<br>')return;
     const attrs=[...document.querySelectorAll('#m-log-attrs .topt.sel')].map(b=>b.textContent.trim());
-    const fu=document.getElementById('m-log-fu').value,fut=document.getElementById('m-log-fu-time').value;
+    const fu=document.getElementById('m-log-fu').value,fut=getTimeSelectVal('m-log-fu-time');
     const rv=getRemindVals();
     const nl={id:Date.now(),date:document.getElementById('m-log-date').value||TODAY,content,attrs,followup:fu,followupTime:fut,remindBeforeN:rv.n,remindBeforeUnit:rv.u};
     if(idx!==null&&idx!==undefined)p.logs[idx]={...p.logs[idx],...nl};else p.logs.push(nl);
@@ -1731,7 +1773,7 @@ function renderBFInput(f,p){
   const years=[];for(let y=2020;y<=2035;y++)years.push(y);
   const lbl=`<label class="form-label">${escH(f.label)}</label>`;
   if(f.type==='date')return`<div class="form-row">${lbl}<input type="date" id="bf-${f.id}" value="${escH(val)}"></div>`;
-  if(f.type==='time')return`<div class="form-row">${lbl}<input type="time" id="bf-${f.id}" value="${escH(val)}"></div>`;
+  if(f.type==='time')return`<div class="form-row">${lbl}${buildTimeSelect('bf-'+f.id,val)}</div>`;
   if(f.type==='year')return`<div class="form-row">${lbl}<select id="bf-${f.id}">${years.map(y=>`<option value="${y}" ${Number(val||new Date().getFullYear())===y?'selected':''}>${y}年</option>`).join('')}</select></div>`;
   if(f.type==='month')return`<div class="form-row">${lbl}<select id="bf-${f.id}">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}" ${Number(val||new Date().getMonth()+1)===m?'selected':''}>${m}月</option>`).join('')}</select></div>`;
   return`<div class="form-row">${lbl}<input type="text" id="bf-${f.id}" value="${escH(val)}"></div>`;
@@ -2031,6 +2073,9 @@ function saveProjForm(isEdit,oldP){
   (_editBFs||[]).forEach(f=>{
     if(f.type==='remind')return;
     const el=document.getElementById('bf-'+f.id);if(!el)return;
+    if(f.type==='time'){
+      bfVals[f.key]=getTimeSelectVal('bf-'+f.id);return;
+    }
     if(f.key)bfVals[f.key]=el.value||'';
     else customBF[f.label]=el.value||''; // use label as key for custom fields
   });

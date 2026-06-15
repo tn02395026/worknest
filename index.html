@@ -217,10 +217,10 @@
 [data-dark="1"] .login-sub{color:#9FAAB8}
 
 /* ── Alarm ── */
-[data-dark="1"] .alarm-popup{background:#242830;border-color:#2EB87A}
+[data-dark="1"] [data-dark="1"] .alarm-popup{background:#242830;border-color:#2EB87A}
 [data-dark="1"] .alarm-title{color:#E8ECF0}
 [data-dark="1"] .alarm-msg{color:#C5D0DC}
-[data-dark="1"] .alarm-snooze{background:#2D3340;border-color:#2EB87A;color:#2EB87A}
+[data-dark="1"] [data-dark="1"] .alarm-snooze{background:#2D3340;border-color:#2EB87A;color:#2EB87A}
 [data-dark="1"] .snooze-opt{background:#2D3340;border-color:#363D4A;color:#C5D0DC}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -2393,6 +2393,11 @@ function renderStatsPage(){
 let _dragFrom=null;
 function renderSettings(){
   let h=`<div class="set-card">
+    <div class="set-title">🔔 鬧鐘測試</div>
+    <div class="set-hint">點擊測試鬧鐘是否正常運作</div>
+    <button class="btn btn-sm" onclick="showAlarmPopup({id:'test-'+Date.now(),label:'這是測試提醒 🎉',proj:'測試專案'})">🔔 測試鬧鐘</button>
+  </div>
+  <div class="set-card">
     <div class="set-title">💾 資料備份</div>
     <div class="set-hint">建議定期匯出備份，以防萬一</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">

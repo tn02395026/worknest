@@ -709,6 +709,7 @@ if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FI
 // Ensure all projects have required fields
 G.projects.forEach(p=>{
   if(!p.sectionData)p.sectionData={};
+  if(!p.projBasicFields)p.projBasicFields=null; // null = use global default
   if(!p.projSections)p.projSections=null;
   if(!p.projStageIds&&p.projStageIds!==null)p.projStageIds=null;
   if(!p.customBasicFields)p.customBasicFields={};
@@ -1795,7 +1796,8 @@ function openProjModal(pid){
 
   // Working copies
   _editSecs=JSON.parse(JSON.stringify(getEffSecs(p)));
-  _editBFs=JSON.parse(JSON.stringify(G.basicFieldDefs||DEFAULT_BASIC_FIELDS));
+  // Load project-specific basic fields, or fall back to global default
+  _editBFs=JSON.parse(JSON.stringify(p.projBasicFields||G.basicFieldDefs||DEFAULT_BASIC_FIELDS));
 
   const sd=p.sectionData||{};
   const years=[];for(let y=2020;y<=2035;y++)years.push(y);
@@ -2237,28 +2239,52 @@ function rmContactFieldForm(ri,fi){
 // Manage basic fields
 function openManageBasicFields(){
   const bfs=_editBFs;
-  let rows=bfs.map((f,i)=>`
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input type="text" value="${escH(f.label)}" id="bfl-${i}" style="flex:1">
-      <span style="font-size:11px;color:var(--text3);white-space:nowrap">${f.type}</span>
-      <button class="btn btn-sm btn-danger" onclick="rmBF(${i})">✕</button>
+  let _bfDrag=null;
+  const buildRows=()=>bfs.map((f,i)=>`
+    <div class="drag-item" draggable="true" data-bfi="${i}" style="cursor:grab;margin-bottom:5px;user-select:none">
+      <span style="font-size:16px;color:var(--text3);cursor:grab">⠿</span>
+      <input type="text" value="${escH(f.label)}" id="bfl-${i}" style="flex:1;border:none;background:transparent;font-size:13px;font-family:inherit;color:var(--text)" onclick="event.stopPropagation()">
+      <span style="font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg2);border-radius:10px;white-space:nowrap">${f.type}</span>
+      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rmBF(${i})">✕</button>
     </div>`).join('');
+  const rebind=()=>{
+    document.querySelectorAll('#bfd-list .drag-item').forEach(el=>{
+      el.addEventListener('dragstart',e=>{_bfDrag=parseInt(el.dataset.bfi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
+      el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#bfd-list .drag-item').forEach(x=>x.style.borderTop='');});
+      el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
+      el.addEventListener('dragleave',()=>{el.style.borderTop='';});
+      el.addEventListener('drop',e=>{
+        e.preventDefault();el.style.borderTop='';
+        if(_bfDrag===null||_bfDrag===parseInt(el.dataset.bfi))return;
+        bfs.forEach((f,i)=>{const inp=document.getElementById('bfl-'+i);if(inp&&inp.value.trim())f.label=inp.value.trim();});
+        const item=bfs.splice(_bfDrag,1)[0];bfs.splice(parseInt(el.dataset.bfi),0,item);
+        _bfDrag=null;
+        document.getElementById('bfd-list').innerHTML=buildRows();
+        rebind();
+      });
+    });
+  };
   openModal('管理基本資訊欄位',`
-    <div class="hint" style="margin-bottom:10px">可新增、刪除、重新命名所有欄位。</div>
-    <div id="bfd-list">${rows}</div>
-    <div class="add-row"><input type="text" id="new-bf-label" placeholder="新欄位名稱，例：本案佣金"><button class="btn btn-sm btn-p" onclick="addBF()">＋ 新增</button></div>`,
+    <div class="hint" style="margin-bottom:10px">可拖曳排序、重新命名、新增或刪除欄位。僅影響此專案，不影響公版。</div>
+    <div id="bfd-list">${buildRows()}</div>
+    <div class="add-row" style="margin-top:8px"><input type="text" id="new-bf-label" placeholder="新欄位名稱，例：本案佣金"><button class="btn btn-sm btn-p" onclick="addBF()">＋ 新增</button></div>`,
   ()=>{
-    bfs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el)f.label=el.value.trim()||f.label;});
-    G.basicFieldDefs=JSON.parse(JSON.stringify(bfs));save();
+    bfs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
   });
+  setTimeout(rebind,80);
 }
+
 function rmBF(i){
+  // Save current labels before removing
+  _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
   _editBFs.splice(i,1);
   closeModal();openManageBasicFields();
 }
 function addBF(){
   const label=document.getElementById('new-bf-label')?.value?.trim();if(!label)return;
+  // Save current labels before adding
+  _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
   _editBFs.push({id:'bf-custom-'+Date.now(),label,type:'text',key:null});
   closeModal();openManageBasicFields();
 }
@@ -2316,12 +2342,12 @@ function saveProjForm(isEdit,oldP){
     sectionData:newSD,
     projSections:JSON.parse(JSON.stringify(_editSecs)),
     customBasicFields:customBF,
+    projBasicFields:JSON.parse(JSON.stringify(_editBFs)),
     todos:isEdit?oldP.todos:[],
     checklist:isEdit?oldP.checklist:buildCL(_selTpl),
     notes:isEdit?oldP.notes:[],logs:isEdit?oldP.logs:[]
   };
-  // Save updated basic field defs globally
-  G.basicFieldDefs=JSON.parse(JSON.stringify(_editBFs));
+  // Save basic fields to this project only (not global)
   if(isEdit){const idx=G.projects.findIndex(x=>x.id===oldP.id);G.projects[idx]=proj;}
   else G.projects.push(proj);
   // Clear old dismissed alarms for this project so new time fires

@@ -2026,6 +2026,7 @@ function openProjModal(pid){
   _editSecs=JSON.parse(JSON.stringify(getEffSecs(p)));
   // Load project-specific basic fields, or fall back to global default
   _editBFs=JSON.parse(JSON.stringify(p.projBasicFields||G.basicFieldDefs||DEFAULT_BASIC_FIELDS));
+  console.log('openProjModal: loaded _editBFs fields='+JSON.stringify(_editBFs.map(f=>f.label)), 'from projBasicFields='+(p.projBasicFields?'yes':'no (using global)'));
 
   const sd=p.sectionData||{};
   const years=[];for(let y=2020;y<=2035;y++)years.push(y);
@@ -2602,6 +2603,7 @@ function openManageBasicFields(){
 }
 
 function rmBF(i){
+  console.log('rmBF called with i='+i, '_editBFs length='+_editBFs.length);
   _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
   _editBFs.splice(i,1);
   // Re-render list without closing modal
@@ -2617,6 +2619,7 @@ function rmBF(i){
   }
 }
 function addBF(){
+  console.log('addBF called, _editBFs length='+_editBFs.length);
   const inp=document.getElementById('new-bf-label');
   const label=inp?.value?.trim();if(!label)return;
   _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
@@ -2713,6 +2716,7 @@ function saveProjForm(isEdit,oldP){
   // Save basic fields to this project only (not global)
   if(isEdit){const idx=G.projects.findIndex(x=>x.id===oldP.id);G.projects[idx]=proj;}
   else G.projects.push(proj);
+  console.log('saveProjForm: projBasicFields fields='+JSON.stringify(proj.projBasicFields?.map(f=>f.label)));
   // Clear old dismissed alarms for this project so new time fires
   if(proj.followup&&proj.followup.trim()){
     const oldAid='proj-'+proj.id+'-'+(isEdit?oldP.followup:'')+((isEdit?oldP.followupTime:''));

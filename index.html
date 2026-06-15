@@ -481,6 +481,7 @@ textarea{resize:vertical;min-height:140px}
     <div class="nav" id="nav-stats"><span class="nav-icon">📊</span> 統計</div>
     <div class="nav" id="nav-today"><span class="nav-icon">☀️</span> 今日待辦</div>
     <div class="nav" id="nav-diary"><span class="nav-icon">📔</span> 日誌查詢</div>
+    <div class="nav" id="nav-revenue"><span class="nav-icon">💰</span> 金額統計</div>
     <div class="nav" id="nav-settings"><span class="nav-icon">⚙️</span> 設定</div>
     <div style="margin-top:auto;padding-top:1rem;border-top:1px solid var(--border)">
       <div class="nav" id="btn-darkmode" style="justify-content:space-between">
@@ -509,6 +510,21 @@ textarea{resize:vertical;min-height:140px}
         <div id="projects-container"></div>
       </div>
       <div id="detail-view" style="display:none"></div>
+    </div>
+    <div class="page" id="page-revenue">
+      <div class="ph"><div class="pt">💰 金額統計</div></div>
+      <div class="search-bar" style="margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+        <select class="filter-sel" id="rev-year"><option value="">全部年份</option></select>
+        <select class="filter-sel" id="rev-month">
+          <option value="">全部月份</option>
+          <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+          <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+          <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+        </select>
+        <button class="btn btn-sm btn-p" id="rev-filter-btn">🔍 套用</button>
+      </div>
+      <div id="rev-content"></div>
     </div>
     <div class="page" id="page-stats">
       <div class="ph"><div class="pt">📊 統計分析</div></div>
@@ -707,9 +723,11 @@ let G=JSON.parse(localStorage.getItem('zz5_data')||JSON.stringify(SEED));
 if(!G.tabOrder)G.tabOrder=['info','contacts','stages','checklist','todos','logs','notes'];
 if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
 // Ensure all projects have required fields
+if(!G.revenueBaselines)G.revenueBaselines=Array(12).fill(0);
 G.projects.forEach(p=>{
   if(!p.sectionData)p.sectionData={};
-  if(!p.projBasicFields)p.projBasicFields=null; // null = use global default
+  if(!p.projBasicFields)p.projBasicFields=null;
+  if(!p.certPrices)p.certPrices=[]; // null = use global default
   if(!p.projSections)p.projSections=null;
   if(!p.projStageIds&&p.projStageIds!==null)p.projStageIds=null;
   if(!p.customBasicFields)p.customBasicFields={};
@@ -758,6 +776,227 @@ function getProjStages(p){
 }
 
 // ── LOGIN ─────────────────────────────────────────
+// ── REVENUE PAGE ──────────────────────────────────
+function renderRevenuePage(){
+  const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
+  const selYear=document.getElementById('rev-year')?.value||'';
+  const selMonth=document.getElementById('rev-month')?.value||'';
+
+  // Filter projects
+  let projs=G.projects.filter(p=>{
+    if(selYear&&String(p.year||new Date().getFullYear())!==selYear)return false;
+    if(selMonth&&String(p.month||1)!==selMonth)return false;
+    return true;
+  });
+
+  // Calculate amounts
+  const getAmount=p=>{
+    if(p.certPrices&&p.certPrices.length>0){
+      return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
+    }
+    return parseFloat(String(p.price||'0').replace(/,/g,''))||0;
+  };
+
+  const totalAmt=projs.reduce((s,p)=>s+getAmount(p),0);
+  const activeAmt=projs.filter(p=>p.status==='active').reduce((s,p)=>s+getAmount(p),0);
+  const closedAmt=projs.filter(p=>p.status==='closed').reduce((s,p)=>s+getAmount(p),0);
+
+  const fmtAmt=n=>n>=1000000?(n/10000).toFixed(1)+'萬':n.toLocaleString();
+
+  // Monthly data for chart (always show all 12 months of selected year, or current year)
+  const chartYear=parseInt(selYear)||new Date().getFullYear();
+  const monthlyData=Array.from({length:12},(_,i)=>{
+    const m=i+1;
+    const ps=G.projects.filter(p=>(p.year||new Date().getFullYear())===chartYear&&(p.month||1)===m);
+    return{month:m,amount:ps.reduce((s,p)=>s+getAmount(p),0),count:ps.length};
+  });
+  const baselines=G.revenueBaselines||Array(12).fill(0);
+  const maxVal=Math.max(...monthlyData.map(d=>d.amount),...baselines,1);
+
+  // Build chart SVG
+  const W=580,H=200,PAD={t:20,r:20,b:40,l:70};
+  const cW=W-PAD.l-PAD.r,cH=H-PAD.t-PAD.b;
+  const x=i=>PAD.l+i*(cW/11);
+  const y=v=>PAD.t+cH-(v/maxVal*cH);
+
+  // Grid lines
+  let gridLines='';
+  [0.25,0.5,0.75,1].forEach(r=>{
+    const yv=PAD.t+cH-(r*cH);
+    const label=fmtAmt(maxVal*r);
+    gridLines+=\`<line x1="\${PAD.l}" y1="\${yv}" x2="\${W-PAD.r}" y2="\${yv}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="\${PAD.l-5}" y="\${yv+4}" text-anchor="end" font-size="10" fill="var(--text3)">\${label}</text>\`;
+  });
+
+  // Baseline line
+  const blPts=baselines.map((v,i)=>\`\${x(i)},\${y(v)}\`).join(' ');
+  const baselineLine=\`<polyline points="\${blPts}" fill="none" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="5,3" opacity=".7"/>\`;
+
+  // Actual amount bars + line
+  const linePts=monthlyData.map((d,i)=>\`\${x(i)},\${y(d.amount)}\`).join(' ');
+  let bars='';
+  monthlyData.forEach((d,i)=>{
+    const bl=baselines[i]||0;
+    const color=d.amount>=bl&&d.amount>0?'var(--sage)':'var(--red)';
+    const bH=Math.max(2,(d.amount/maxVal*cH));
+    bars+=\`<rect x="\${x(i)-12}" y="\${y(d.amount)}" width="24" height="\${bH}" fill="\${color}" opacity=".3" rx="3"/>
+    <text x="\${x(i)}" y="\${H-PAD.b+14}" text-anchor="middle" font-size="10" fill="var(--text3)">\${i+1}月</text>\`;
+    if(d.amount>0)bars+=\`<text x="\${x(i)}" y="\${y(d.amount)-5}" text-anchor="middle" font-size="9" fill="\${color}" font-weight="700">\${fmtAmt(d.amount)}</text>\`;
+  });
+  const actualLine=\`<polyline points="\${linePts}" fill="none" stroke="var(--sage)" stroke-width="2.5"/>\`;
+  const dots=monthlyData.map((d,i)=>{
+    const bl=baselines[i]||0;
+    const color=d.amount>=bl&&d.amount>0?'var(--sage)':'var(--red)';
+    return \`<circle cx="\${x(i)}" cy="\${y(d.amount)}" r="4" fill="\${color}" stroke="white" stroke-width="1.5"/>\`;
+  }).join('');
+
+  const chartSVG=\`<svg viewBox="0 0 \${W} \${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">
+    \${gridLines}\${bars}\${baselineLine}\${actualLine}\${dots}
+    <text x="\${PAD.l+cW/2}" y="\${H-2}" text-anchor="middle" font-size="11" fill="var(--text3)">\${chartYear}年 月份報價金額</text>
+    <line x1="\${PAD.l}" y1="\${H-PAD.b}" x2="\${W-PAD.r}" y2="\${H-PAD.b}" stroke="var(--border2)" stroke-width="1.5"/>
+    <line x1="\${PAD.l}" y1="\${PAD.t}" x2="\${PAD.l}" y2="\${H-PAD.b}" stroke="var(--border2)" stroke-width="1.5"/>
+  </svg>\`;
+
+  // Project list
+  let projRows=projs.sort((a,b)=>getAmount(b)-getAmount(a)).map(p=>{
+    const amt=getAmount(p);
+    const cpRows=(p.certPrices||[]).map(cp=>\`
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);padding:2px 0 2px 12px">
+        <span>└ \${escH(cp.certName||'')}</span><span>NT$ \${Number(String(cp.amount||'0').replace(/,/g,'')).toLocaleString()}\${cp.note?\` <span style="color:var(--text3)">\${escH(cp.note)}</span>\`:''}</span>
+      </div>\`).join('');
+    return \`<div style="background:var(--white);border-radius:var(--rsm);border:1.5px solid var(--border);padding:10px 13px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:13px;font-weight:800;color:var(--text);cursor:pointer" onclick="goPage('projects');openProject(\${p.id})">\${escH(p.name)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">\${p.year||''}年\${p.month||''}月 · \${stageById(p.stage).name} · \${p.status==='closed'?'✅ 結案':p.status==='lost'?'❌ 流標':'🌱 進行中'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:15px;font-weight:800;color:var(--sage)">NT$ \${amt.toLocaleString()}</div>
+          <button class="btn btn-sm btn-ghost" style="font-size:11px;margin-top:3px" onclick="openCertPrices(\${p.id})">✏️ 分項報價</button>
+        </div>
+      </div>
+      \${cpRows}
+    </div>\`;
+  }).join('');
+
+  // Legend
+  const legend=\`<div style="display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text3);margin-bottom:8px">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:20px;height:3px;background:var(--sage);display:inline-block;border-radius:2px"></span>實際金額</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:20px;height:2px;background:var(--red);display:inline-block;border-radius:2px;border-top:1px dashed var(--red)"></span>目標基準</span>
+    <span style="color:var(--sage)">■ 達標</span><span style="color:var(--red)">■ 未達標</span>
+  </div>\`;
+
+  document.getElementById('rev-content').innerHTML=\`
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-num" style="color:var(--blue)">NT$ \${fmtAmt(totalAmt)}</div><div class="stat-label">📊 篩選總報價</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--sage)">NT$ \${fmtAmt(activeAmt)}</div><div class="stat-label">🌱 進行中</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--gray)">NT$ \${fmtAmt(closedAmt)}</div><div class="stat-label">✅ 結案</div></div>
+      <div class="stat-card"><div class="stat-num" style="color:var(--text)">\${projs.length}</div><div class="stat-label">📋 專案數</div></div>
+    </div>
+    <div class="analytics-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="analytics-title" style="margin-bottom:0">📈 月度報價趨勢 (\${chartYear}年)</div>
+        <button class="btn btn-sm" onclick="openBaselineEditor()">⚙️ 設定月目標</button>
+      </div>
+      \${legend}\${chartSVG}
+    </div>
+    <div class="analytics-card">
+      <div class="analytics-title">💰 專案報價明細</div>
+      \${projRows||'<div class="empty-state"><div class="empty-icon">💰</div><p>無符合條件的專案</p></div>'}
+    </div>\`;
+}
+
+function openBaselineEditor(){
+  if(!G.revenueBaselines)G.revenueBaselines=Array(12).fill(0);
+  const bls=G.revenueBaselines;
+  const rows=bls.map((v,i)=>\`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+      <label style="font-size:12px;font-weight:700;color:var(--text2);width:40px">\${i+1}月</label>
+      <input type="text" id="bl-\${i}" value="\${v>0?v.toLocaleString():''}" placeholder="0" style="flex:1">
+    </div>\`).join('');
+  openModal('設定每月目標金額(NT$)',\`
+    <div class="hint" style="margin-bottom:10px">設定後顯示為折線圖紅色基準線，與實際報價做比較。</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">\${rows}</div>\`,
+  ()=>{
+    bls.forEach((_,i)=>{
+      const v=parseFloat(String(document.getElementById('bl-'+i)?.value||'0').replace(/,/g,''))||0;
+      G.revenueBaselines[i]=v;
+    });
+    save();closeModal();renderRevenuePage();
+  });
+}
+
+function openCertPrices(pid){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  if(!p.certPrices)p.certPrices=[];
+  const secs=getEffSecs(p);
+  const certSec=secs.find(s=>s.id==='sec-certs');
+  const certItems=certSec?certSec.items||[]:[];
+  const selCerts=Array.isArray(p.sectionData?.['sec-certs'])?p.sectionData['sec-certs']:[];
+
+  const buildRows=()=>(p.certPrices||[]).map((cp,i)=>\`
+    <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px">
+      <input type="text" id="cpn-\${i}" value="\${escH(cp.certName||'')}" placeholder="認證名稱（例：LEED）">
+      <input type="text" id="cpa-\${i}" value="\${cp.amount||''}" placeholder="金額">
+      <button class="btn btn-sm btn-danger" onclick="rmCertPrice(\${pid},\${i})">✕</button>
+    </div>\`).join('');
+
+  const quickAdd=selCerts.length?\`
+    <div class="hint" style="margin-bottom:6px">快速新增（依認證類型）：</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px">
+      \${selCerts.map(cert=>\`<button class="btn btn-sm" onclick="quickAddCertPrice(\${pid},'\${escH(cert)}')">\${escH(cert)} ＋</button>\`).join('')}
+    </div>\`:'';
+
+  openModal(\`\${escH(p.name)} - 分項報價\`,\`
+    \${quickAdd}
+    <div id="cp-list">\${buildRows()}</div>
+    <div class="add-row">
+      <input type="text" id="new-cpn" placeholder="認證名稱">
+      <input type="text" id="new-cpa" placeholder="金額(NT$)" style="width:120px">
+      <button class="btn btn-sm btn-p" onclick="addCertPrice(\${pid})">＋</button>
+    </div>\`,
+  ()=>{
+    (p.certPrices||[]).forEach((cp,i)=>{
+      cp.certName=document.getElementById('cpn-'+i)?.value||cp.certName;
+      cp.amount=document.getElementById('cpa-'+i)?.value||cp.amount;
+    });
+    // Auto-update total price
+    p.price=(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0).toLocaleString();
+    save();closeModal();renderRevenuePage();
+  });
+}
+
+function quickAddCertPrice(pid,cert){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  // Save current inputs before adding
+  (p.certPrices||[]).forEach((cp,i)=>{
+    cp.certName=document.getElementById('cpn-'+i)?.value||cp.certName;
+    cp.amount=document.getElementById('cpa-'+i)?.value||cp.amount;
+  });
+  if(!p.certPrices)p.certPrices=[];
+  if(!p.certPrices.some(cp=>cp.certName===cert))p.certPrices.push({id:'cp'+Date.now(),certName:cert,amount:'',note:''});
+  closeModal();openCertPrices(pid);
+}
+
+function addCertPrice(pid){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  const name=document.getElementById('new-cpn')?.value?.trim();
+  const amt=document.getElementById('new-cpa')?.value?.trim();
+  if(!name)return;
+  (p.certPrices||[]).forEach((cp,i)=>{
+    cp.certName=document.getElementById('cpn-'+i)?.value||cp.certName;
+    cp.amount=document.getElementById('cpa-'+i)?.value||cp.amount;
+  });
+  if(!p.certPrices)p.certPrices=[];
+  p.certPrices.push({id:'cp'+Date.now(),certName:name,amount:amt||'',note:''});
+  closeModal();openCertPrices(pid);
+}
+
+function rmCertPrice(pid,i){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  p.certPrices.splice(i,1);
+  closeModal();openCertPrices(pid);
+}
 function initLogin(){
   const mascots=['🐶','🐱','🦜','🐰','😸','🐾'];
   document.getElementById('login-mascot').textContent=mascots[Math.floor(Math.random()*mascots.length)];
@@ -804,6 +1043,7 @@ function goPage(pg){
   if(pg==='diary')initDiary();
   if(pg==='stats')renderStatsPage();
   if(pg==='today')renderToday();
+  if(pg==='revenue'){renderYearFilterRevenue();renderRevenuePage();}
   if(pg==='projects'){showList();renderTopStats();renderAlerts();renderProjects();}
 }
 
@@ -958,6 +1198,12 @@ function renderAlerts(){
   const alertMsg=alertMsgs[Math.floor(Date.now()/5000)%alertMsgs.length];
   document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
 }
+function renderYearFilterRevenue(){
+  const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
+  const sel=document.getElementById('rev-year');if(!sel)return;
+  sel.innerHTML='<option value="">全部年份</option>'+years.map(y=>`<option value="${y}">${y}年</option>`).join('');
+}
+
 function renderYearFilter(){
   const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
   ['filter-year','stats-year'].forEach(id=>{
@@ -1842,7 +2088,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
   h+=`<div class="form-section">
     <div class="form-stitle">📋 基本資訊
       <button class="btn btn-sm btn-ghost" type="button" onclick="openManageBasicFields()">✏️ 管理欄位</button>
-    </div>`;
+    </div><div id="basic-fields-wrap">`;
   // Render basic fields in pairs
   const bfPairs=[];
   let _bfi=0;
@@ -1864,7 +2110,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
       h+=renderBFInput(f,p);
     }
   });
-  h+=`</div>`;
+  h+=`</div></div>`;
 
   // ── TEMPLATE SELECTOR (new only) ──────────────
   if(!isEdit){h+=`<div class="form-section"><div class="form-stitle">📐 選擇公版</div><div id="pf-tpl-list">${tplH}</div></div>`;}
@@ -2269,8 +2515,39 @@ function openManageBasicFields(){
     <div id="bfd-list">${buildRows()}</div>
     <div class="add-row" style="margin-top:8px"><input type="text" id="new-bf-label" placeholder="新欄位名稱，例：本案佣金"><button class="btn btn-sm btn-p" onclick="addBF()">＋ 新增</button></div>`,
   ()=>{
+    // Save all current labels
     bfs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
+    // Refresh the basic fields in the parent form
+    const bfSection=document.getElementById('basic-fields-wrap');
+    if(bfSection){
+      // Re-read current values from form before rebuilding
+      const tmpP={};
+      _editBFs.forEach(f=>{
+        if(f.type==='remind')return;
+        if(f.type==='time'){tmpP[f.key||f.id]=getTimeSelectVal('bf-'+f.id);return;}
+        const el2=document.getElementById('bf-'+f.id);
+        if(el2){if(f.key)tmpP[f.key]=el2.value;else{if(!tmpP.customBasicFields)tmpP.customBasicFields={};tmpP.customBasicFields[f.label]=el2.value;}}
+      });
+      // Rebuild form
+      const years=[];for(let y=2020;y<=2035;y++)years.push(y);
+      let h='';
+      const bfPairs=[];let _bfi2=0;
+      while(_bfi2<_editBFs.length){
+        const f=_editBFs[_bfi2];
+        if(f.type==='remind'){bfPairs.push([f]);_bfi2++;continue;}
+        const next=_editBFs[_bfi2+1];
+        if(next&&next.type!=='remind'){bfPairs.push([f,next]);_bfi2+=2;}
+        else{bfPairs.push([f]);_bfi2++;}
+      }
+      bfPairs.forEach(pair=>{
+        const f=pair[0];
+        if(f.type==='remind'){h+=remindBeforeHTML(tmpP.remindBeforeN||'',tmpP.remindBeforeUnit||'min');return;}
+        if(pair.length===2){h+='<div class="form-grid">'+pair.map(f2=>renderBFInput(f2,tmpP)).join('')+'</div>';}
+        else{h+=renderBFInput(f,tmpP);}
+      });
+      bfSection.innerHTML=h;
+    }
   });
   setTimeout(rebind,80);
 }
@@ -2735,6 +3012,7 @@ function startApp(){
   document.getElementById('nav-today').addEventListener('click',()=>goPage('today'));
   document.getElementById('nav-stats').addEventListener('click',()=>goPage('stats'));
   document.getElementById('nav-diary').addEventListener('click',()=>goPage('diary'));
+  document.getElementById('nav-revenue').addEventListener('click',()=>goPage('revenue'));
   document.getElementById('nav-settings').addEventListener('click',()=>goPage('settings'));
   document.getElementById('btn-new-proj').addEventListener('click',openNewProjModal);
   document.getElementById('proj-search').addEventListener('input',renderProjects);
@@ -2745,6 +3023,7 @@ function startApp(){
   document.getElementById('diary-search-btn').addEventListener('click',renderDiary);
   document.getElementById('diary-clear-btn').addEventListener('click',()=>{document.getElementById('diary-from').value='';document.getElementById('diary-to').value='';document.getElementById('diary-kw').value='';renderDiary();});
   document.getElementById('stats-filter-btn').addEventListener('click',renderStatsPage);
+  document.getElementById('rev-filter-btn').addEventListener('click',renderRevenuePage);
   document.getElementById('lightbox').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
   document.getElementById('lb-close').addEventListener('click',()=>document.getElementById('lightbox').classList.remove('open'));
   renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();initDarkMode();

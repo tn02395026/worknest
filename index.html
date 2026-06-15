@@ -1412,7 +1412,8 @@ function paneInfo(p,secs){
     ${p.status==='lost'&&p.lostDate?r('❌ 流標日期',p.lostDate,''):''}
     ${infoSec&&infoSec.enabled!==false?(infoSec.items||[]).filter(f=>infoVals[f.id]).map(f=>r(f.label,infoVals[f.id]||'',`inlineEditSD(${p.id},'sec-info','${f.id}','${escH(infoVals[f.id]||'')}','${escH(f.label)}')`)).join(''):''}
     ${Object.entries(p.customBasicFields||{}).filter(([k,v])=>v).map(([k,v])=>`<div><div class="info-label">${escH(k)}</div><div class="info-value" onclick="inlineEditCBF(${p.id},'${escH(k)}','${escH(v)}')">${escH(v)}</div></div>`).join('')}
-  </div>`;
+  </div>
+  ${(p.certPrices||[]).length?`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:6px">💰 分項報價</div><div style="display:flex;flex-direction:column;gap:4px">${(p.certPrices||[]).map(cp=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:var(--sage4);border-radius:var(--rxs);border:1px solid var(--border)"><span style="font-size:12px;font-weight:700;color:var(--text2)">${escH(cp.certName||'')}</span><span style="font-size:12px;font-weight:700;color:var(--sage)">NT$ ${Number(String(cp.amount||'0').replace(/,/g,'')).toLocaleString()}</span></div>`).join('')}<div style="display:flex;justify-content:space-between;padding:5px 9px;border-top:1px dashed var(--border);margin-top:2px"><span style="font-size:12px;font-weight:800;color:var(--text2)">合計</span><span style="font-size:13px;font-weight:800;color:var(--sage)">NT$ ${(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0).toLocaleString()}</span></div></div></div>`:''}`;
   if(attrSec&&attrSec.enabled!==false&&selAttrs.length)h+=`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:5px">${escH(attrSec.label)}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${selAttrs.map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div></div>`;
   if(certSec&&certSec.enabled!==false&&selCerts.length)h+=`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:5px">${escH(certSec.label)}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${selCerts.map(c=>`<span class="badge badge-cert">${escH(c)}</span>`).join('')}</div></div>`;
   return h+'</div>';
@@ -2511,6 +2512,38 @@ function rmCPRowInForm(i){
   const row=document.getElementById('cp-row-'+i);if(row)row.remove();
 }
 
+function bindBFDrag(){
+  let _drag=null;
+  document.querySelectorAll('#bfd-list .drag-item').forEach(el=>{
+    el.addEventListener('dragstart',e=>{_drag=parseInt(el.dataset.bfi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
+    el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#bfd-list .drag-item').forEach(x=>x.style.borderTop='');});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
+    el.addEventListener('dragleave',()=>{el.style.borderTop='';});
+    el.addEventListener('drop',e=>{
+      e.preventDefault();
+      document.querySelectorAll('#bfd-list .drag-item').forEach(x=>x.style.borderTop='');
+      if(_drag===null||_drag===parseInt(el.dataset.bfi))return;
+      // Save labels
+      _editBFs.forEach((f,i)=>{const inp=document.getElementById('bfl-'+i);if(inp&&inp.value.trim())f.label=inp.value.trim();});
+      // Reorder
+      const item=_editBFs.splice(_drag,1)[0];
+      _editBFs.splice(parseInt(el.dataset.bfi),0,item);
+      _drag=null;
+      // Re-render
+      const list=document.getElementById('bfd-list');
+      if(list){
+        list.innerHTML=_editBFs.map((f,idx)=>'<div class="drag-item" draggable="true" data-bfi="'+idx+'" style="cursor:grab;margin-bottom:5px">'
+          +'<span style="font-size:16px;color:var(--text3)">⠿</span>'
+          +'<input type="text" value="'+escH(f.label)+'" id="bfl-'+idx+'" style="flex:1;border:none;background:transparent;font-size:13px;font-family:inherit;color:var(--text)" onclick="event.stopPropagation()">'
+          +'<span style="font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg2);border-radius:10px;white-space:nowrap">'+f.type+'</span>'
+          +'<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rmBF('+idx+')">✕</button>'
+          +'</div>').join('');
+        bindBFDrag();
+      }
+    });
+  });
+}
+
 function rebuildBasicFieldsWrap(){
   const bfSection=document.getElementById('basic-fields-wrap');
   if(!bfSection)return;
@@ -2554,23 +2587,7 @@ function openManageBasicFields(){
       <span style="font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg2);border-radius:10px;white-space:nowrap">${f.type}</span>
       <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rmBF(${i})">✕</button>
     </div>`).join('');
-  const rebind=()=>{
-    document.querySelectorAll('#bfd-list .drag-item').forEach(el=>{
-      el.addEventListener('dragstart',e=>{_bfDrag=parseInt(el.dataset.bfi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
-      el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#bfd-list .drag-item').forEach(x=>x.style.borderTop='');});
-      el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
-      el.addEventListener('dragleave',()=>{el.style.borderTop='';});
-      el.addEventListener('drop',e=>{
-        e.preventDefault();el.style.borderTop='';
-        if(_bfDrag===null||_bfDrag===parseInt(el.dataset.bfi))return;
-        bfs.forEach((f,i)=>{const inp=document.getElementById('bfl-'+i);if(inp&&inp.value.trim())f.label=inp.value.trim();});
-        const item=bfs.splice(_bfDrag,1)[0];bfs.splice(parseInt(el.dataset.bfi),0,item);
-        _bfDrag=null;
-        document.getElementById('bfd-list').innerHTML=buildRows();
-        rebind();
-      });
-    });
-  };
+  // drag handled by bindBFDrag()
   openModal('管理基本資訊欄位',`
     <div class="hint" style="margin-bottom:10px">可拖曳排序、重新命名、新增或刪除欄位。僅影響此專案，不影響公版。</div>
     <div id="bfd-list">${buildRows()}</div>
@@ -2580,21 +2597,41 @@ function openManageBasicFields(){
     closeModal();
     rebuildBasicFieldsWrap();
   });
-  setTimeout(rebind,80);
+  setTimeout(bindBFDrag,80);
 }
 
 function rmBF(i){
-  // Save current labels before removing
   _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
   _editBFs.splice(i,1);
-  closeModal();openManageBasicFields();
+  // Re-render list without closing modal
+  const list=document.getElementById('bfd-list');
+  if(list){
+    list.innerHTML=_editBFs.map((f,idx)=>'<div class="drag-item" draggable="true" data-bfi="'+idx+'" style="cursor:grab;margin-bottom:5px">'
+      +'<span style="font-size:16px;color:var(--text3)">⠿</span>'
+      +'<input type="text" value="'+escH(f.label)+'" id="bfl-'+idx+'" style="flex:1;border:none;background:transparent;font-size:13px;font-family:inherit;color:var(--text)" onclick="event.stopPropagation()">'
+      +'<span style="font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg2);border-radius:10px;white-space:nowrap">'+f.type+'</span>'
+      +'<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rmBF('+idx+')">✕</button>'
+      +'</div>').join('');
+    bindBFDrag();
+  }
 }
 function addBF(){
-  const label=document.getElementById('new-bf-label')?.value?.trim();if(!label)return;
-  // Save current labels before adding
+  const inp=document.getElementById('new-bf-label');
+  const label=inp?.value?.trim();if(!label)return;
   _editBFs.forEach((f,j)=>{const el=document.getElementById('bfl-'+j);if(el&&el.value.trim())f.label=el.value.trim();});
   _editBFs.push({id:'bf-custom-'+Date.now(),label,type:'text',key:null});
-  closeModal();openManageBasicFields();
+  inp.value='';
+  // Re-render list
+  const list=document.getElementById('bfd-list');
+  if(list){
+    list.innerHTML=_editBFs.map((f,idx)=>'<div class="drag-item" draggable="true" data-bfi="'+idx+'" style="cursor:grab;margin-bottom:5px">'
+      +'<span style="font-size:16px;color:var(--text3)">⠿</span>'
+      +'<input type="text" value="'+escH(f.label)+'" id="bfl-'+idx+'" style="flex:1;border:none;background:transparent;font-size:13px;font-family:inherit;color:var(--text)" onclick="event.stopPropagation()">'
+      +'<span style="font-size:11px;color:var(--text3);padding:1px 6px;background:var(--bg2);border-radius:10px;white-space:nowrap">'+f.type+'</span>'
+      +'<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rmBF('+idx+')">✕</button>'
+      +'</div>').join('');
+    bindBFDrag();
+  }
 }
 
 // ── SAVE PROJECT FORM ─────────────────────────────

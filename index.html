@@ -1031,7 +1031,7 @@ function cardHTML(p){
     ${attrSec&&attrSec.enabled!==false&&selAttrs.length?`<div class="card-attrs">${selAttrs.slice(0,3).map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div>`:''}
     <div class="prog-track" style="margin-top:5px"><div class="prog-fill" style="width:${pct}%;background:${st.color}"></div></div>
     <div class="prog-label"><span>${escH(st.name)}</span><span style="font-weight:800;color:${st.color}">${pct}%</span></div>
-    ${(()=>{const allItems=(p.checklist||[]).flatMap(s=>s.items||[]);const doneItems=allItems.filter(i=>i.done);return allItems.length?`<div style="margin-top:3px;display:flex;align-items:center;gap:5px"><div style="flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;background:${doneItems.length===allItems.length?'var(--sage)':'var(--sage3)'};width:${Math.round(doneItems.length/allItems.length*100)}%;border-radius:2px"></div></div><span style="font-size:10px;color:var(--text3)">✅ ${doneItems.length}/${allItems.length}</span></div>`:''})()}
+    
     ${sb}
     ${ov?`<div class="overdue-badge">🐾 追蹤日期已到！快去處理我！</div>`:''}
     <div class="card-meta">

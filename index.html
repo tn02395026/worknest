@@ -2258,12 +2258,14 @@ function saveProjForm(isEdit,oldP){
   const bfVals={};const customBF={};
   (_editBFs||[]).forEach(f=>{
     if(f.type==='remind')return;
-    const el=document.getElementById('bf-'+f.id);if(!el)return;
+    // Time fields use select dropdowns, no single element with f.id
     if(f.type==='time'){
-      bfVals[f.key]=getTimeSelectVal('bf-'+f.id);return;
+      if(f.key)bfVals[f.key]=getTimeSelectVal('bf-'+f.id);
+      return;
     }
+    const el=document.getElementById('bf-'+f.id);if(!el)return;
     if(f.key)bfVals[f.key]=el.value||'';
-    else customBF[f.label]=el.value||''; // use label as key for custom fields
+    else customBF[f.label]=el.value||'';
   });
   const name=(bfVals['name']||'').trim();if(!name)return alert('請輸入專案名稱');
   const rv=getRemindVals();
@@ -2558,24 +2560,24 @@ function getTriggerTime(followup,followupTime,rn,ru){
     return new Date(base.getTime()-getRemindMs(rn,ru));
   }catch(e){return null;}
 }
-function scheduleAlarmCheck(){if(_alarmTimer)clearInterval(_alarmTimer);_alarmTimer=setInterval(checkAlarms,20000);checkAlarms();}
+function scheduleAlarmCheck(){if(_alarmTimer)clearInterval(_alarmTimer);_alarmTimer=setInterval(checkAlarms,10000);checkAlarms();}
 function checkAlarms(){
   const now=new Date();const items=[];
   G.projects.forEach(p=>{
     if(p.followup&&p.followupTime&&p.status==='active'){
       const trigger=getTriggerTime(p.followup,p.followupTime,p.remindBeforeN,p.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='proj-'+p.id+'-'+p.followup+p.followupTime;
-        if(diff>=-2&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'專案追蹤',proj:p.name});}
+        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'專案追蹤',proj:p.name});}
     }
     (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followupTime).forEach(t=>{
       const trigger=getTriggerTime(t.followup,t.followupTime,t.remindBeforeN,t.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='todo-'+t.id;
-        if(diff>=-2&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:t.label,proj:p.name});}
+        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:t.label,proj:p.name});}
     });
     (p.logs||[]).filter(l=>l.followup&&l.followupTime).forEach(l=>{
       const trigger=getTriggerTime(l.followup,l.followupTime,l.remindBeforeN,l.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='log-'+l.id;
-        if(diff>=-2&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
+        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
     });
   });
   items.forEach(item=>{_shownAlarms.add(item.id);showAlarmPopup(item);});

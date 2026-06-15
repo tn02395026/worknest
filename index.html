@@ -211,7 +211,20 @@
 [data-dark="1"] .toggle-track.on{background:#2EB87A}
 
 /* ── Login ── */
-[data-dark="1"] 
+[data-dark="1"] #login-screen{background:#1C1F23}
+[data-dark="1"] .login-box{background:#242830}
+[data-dark="1"] .login-title{color:#E8ECF0}
+[data-dark="1"] .login-sub{color:#9FAAB8}
+
+/* ── Alarm ── */
+[data-dark="1"] .alarm-popup{background:#242830;border-color:#2EB87A}
+[data-dark="1"] .alarm-title{color:#E8ECF0}
+[data-dark="1"] .alarm-msg{color:#C5D0DC}
+[data-dark="1"] .alarm-snooze{background:#2D3340;border-color:#2EB87A;color:#2EB87A}
+[data-dark="1"] .snooze-opt{background:#2D3340;border-color:#363D4A;color:#C5D0DC}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
 /* LAYOUT */
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:200px;background:var(--white);border-right:1.5px solid var(--border);display:flex;flex-direction:column;padding:1.2rem .9rem;z-index:100;box-shadow:var(--shadow)}
 .logo{display:flex;align-items:center;gap:8px;margin-bottom:1.4rem;padding:0 4px}
@@ -435,6 +448,7 @@ textarea{resize:vertical;min-height:140px}
 </head>
 <body>
 
+<!-- LOGIN -->
 <div id="app">
   <div class="sidebar">
     <div class="logo"><span class="logo-icon">🐾</span><span class="logo-text">宗宗的家</span></div>
@@ -539,6 +553,24 @@ textarea{resize:vertical;min-height:140px}
 </div>
 <div id="lightbox"><button id="lb-close">✕</button><img id="lb-img" src="" alt=""></div>
 <div id="alarm-container"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCXfJJTBKhBNgNPH7mHjYn-aOYUiGL5WBI",
+    authDomain: "worknest-ea4ce.firebaseapp.com",
+    projectId: "worknest-ea4ce",
+    storageBucket: "worknest-ea4ce.firebasestorage.app",
+    messagingSenderId: "257805066733",
+    appId: "1:257805066733:web:3215d4056ee191be2f87e4"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const DOC_REF = db.collection('worknest').doc('data');
+</script>
+
 <script>
 // ── CONSTANTS ────────────────────────────────────
 const MASCOTS=['🐶','🐱','🦜','🐦','😸','🐕','🦚','🐾','🐰','🐹'];
@@ -940,7 +972,6 @@ function rmCertPrice(pid,i){
 }
 
 
-
 // ── NAV ───────────────────────────────────────────
 let curPage='projects';
 function goPage(pg){
@@ -1336,7 +1367,7 @@ function paneInfo(p,secs){
   const r=(l,v,fn)=>v?`<div><div class="info-label">${escH(l)}</div><div class="info-value" onclick="${fn}">${escH(v)}</div></div>`:'';
   let h=`<div class="d-pane active"><div class="info-grid">
     ${r('📅 接洽日期',p.contactDate||'',`inlineEdit(${p.id},'contactDate','${escH(p.contactDate||'')}','接洽日期')`)}
-    ${(()=>{const _t=(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);const _d=_t>0?_t.toLocaleString():(p.price||'');return _d?r('💰 報價金額','NT$ '+_d,'inlineEdit('+p.id+',\'price\',\''+escH(p.price||'')+'\',\'報價金額\')'):''})()','報價金額')`)}
+    ${r('💰 報價金額',p.price?'NT$ '+p.price:'',`inlineEdit(${p.id},'price','${escH(p.price||'')}','報價金額')`)}
     ${r('👥 案件來源',p.source||'',`inlineEdit(${p.id},'source','${escH(p.source||'')}','案件來源')`)}
     ${p.followup?`<div><div class="info-label">🔔 下次追蹤</div><div style="display:flex;align-items:center;gap:6px"><div class="info-value" onclick="inlineEdit(${p.id},'followup','${p.followup||''}','下次追蹤')">${p.followup}${p.followupTime?' '+p.followupTime:''}</div><button class="ibtn" style="color:var(--red);font-size:11px" onclick="clearFollowup(${p.id})">✕ 清除</button></div></div>`:''}
     ${p.status==='closed'&&p.closedDate?r('✅ 結案日期',p.closedDate,''):''}
@@ -1729,7 +1760,7 @@ function getRemindVals(){
   const [n,u]=sel.value.split('|');
   return{n:n||'',u:u||'min'};
 }
-// getRemindVals - see above
+
 
 // ── TODO MODAL ────────────────────────────────────
 function openTodoModal(pid,editIdx,secs){
@@ -2678,28 +2709,6 @@ function saveProjForm(isEdit,oldP){
   scheduleAlarmCheck();
 }
 
-function exportBackup(){
-  const data=JSON.stringify(G,null,2);
-  const blob=new Blob([data],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='worknest-backup-'+new Date().toISOString().split('T')[0]+'.json';
-  a.click();
-}
-function importBackup(inp){
-  const file=inp.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const data=JSON.parse(e.target.result);
-      if(!data.projects)return alert('無效的備份檔案');
-      if(!confirm('確定要匯入？這將覆蓋現有資料。'))return;
-      G=data;save();renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();renderSettings();
-      alert('匯入成功！共 '+G.projects.length+' 個專案');
-    }catch(e){alert('檔案格式錯誤');}
-  };
-  reader.readAsText(file);inp.value='';
-}
-
 function buildCL(tplId){
   const t=getTpl(tplId);if(!t)return[];
   return(t.checklist||[]).map(s=>({section:s.section,items:(s.items||[]).map(i=>({...i,done:false,doneDate:'',note:''}))}));
@@ -2796,14 +2805,7 @@ function renderSettings(){
     h+=`<div class="drag-item" draggable="true" data-i="${i}"><span class="drag-handle">⠿</span><span class="color-dot" style="background:${s.color}"></span><span style="flex:1;font-size:13px;font-weight:700">${escH(s.name)}</span><span style="font-size:11px;color:var(--text3);padding:2px 8px;background:var(--bg2);border-radius:20px">${i+1}</span><button class="pill-rm" data-rm-stage="${s.id}">✕</button></div>`;
   });
   h+=`</div><div class="add-row"><input type="text" id="add-stage-inp" placeholder="新增階段名稱"><button class="btn btn-sm" id="btn-add-stage">＋ 新增</button></div></div>`;
-  h+=`<div class="set-card"><div class="set-title">💾 資料備份</div>
-    <div class="set-hint">匯出資料備份或從備份檔案還原</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-p" onclick="exportBackup()">📤 匯出備份</button>
-      <button class="btn btn-sm" onclick="document.getElementById('import-file').click()">📥 匯入備份</button>
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importBackup(this)">
-    </div></div>
-  <div class="set-card"><div class="set-title">📐 公版管理</div><div class="set-hint">公版決定新增專案時的預設區塊，可複製後再修改</div><div id="tpl-list">`;
+  h+=`<div class="set-card"><div class="set-title">📐 公版管理</div><div class="set-hint">公版決定新增專案時的預設區塊，可複製後再修改</div><div id="tpl-list">`;
   G.templates.forEach(t=>{
     h+=`<div class="tpl-card" style="cursor:default"><div style="display:flex;justify-content:space-between;align-items:center">
       <div class="tpl-name">${t.icon} ${escH(t.name)}</div>
@@ -3109,25 +3111,25 @@ function startApp(){
   renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();initDarkMode();
 } // end startApp
 
-document.addEventListener('DOMContentLoaded',()=>{if(localStorage.getItem('wn_dark')==='1'){document.documentElement.setAttribute('data-dark','1');}initApp();});
+// Wait for Firebase to be ready before starting
+function tryInit(retries){
+  if(typeof firebase!=='undefined'&&typeof DOC_REF!=='undefined'){
+    initApp();
+  } else if(retries>0){
+    setTimeout(()=>tryInit(retries-1),200);
+  } else {
+    // Firebase never loaded, use localStorage only
+    startApp();
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(localStorage.getItem('wn_dark')==='1'){
+    document.documentElement.setAttribute('data-dark','1');
+  }
+  tryInit(20);
+});
 </script>
 
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCXfJJTBKhBNgNPH7mHjYn-aOYUiGL5WBI",
-    authDomain: "worknest-ea4ce.firebaseapp.com",
-    projectId: "worknest-ea4ce",
-    storageBucket: "worknest-ea4ce.firebasestorage.app",
-    messagingSenderId: "257805066733",
-    appId: "1:257805066733:web:3215d4056ee191be2f87e4"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
-  const DOC_REF = db.collection('worknest').doc('data');
-</script>
 
 </body>
 </html>

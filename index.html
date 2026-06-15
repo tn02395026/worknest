@@ -7,20 +7,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --dm:0;
-}
-[data-dark="1"]{
-  --bg:#1A2220;--bg2:#1F2B27;--white:#243028;
-  --sage:#5A8F6A;--sage2:#4A7A58;--sage3:#2A4A35;--sage4:#1E2D25;
-  --text:#D4E8D8;--text2:#9AB89E;--text3:#5A7A5E;
-  --border:#2A4A35;--border2:#3A5A45;
-  --blue:#4A7DC9;--blue-l:#1A2535;
-  --red:#C04A4A;--red-l:#2A1A1A;
-  --gray:#5A6E5C;--gray-l:#1E2820;
-  --shadow:0 2px 10px rgba(0,0,0,.3);
-  --shadow2:0 4px 20px rgba(0,0,0,.4);
-}
-:root{
   --bg:#F4F7F5;--bg2:#E8EFE9;--white:#FFF;
   --sage:#6B9E7A;--sage2:#8DB89A;--sage3:#C5DCCA;--sage4:#EDF5EF;
   --text:#2C3A2E;--text2:#5A6E5C;--text3:#9AB09C;
@@ -33,10 +19,21 @@
   --shadow2:0 4px 20px rgba(107,158,122,.16);
   --r:14px;--rsm:9px;--rxs:6px;
 }
+[data-dark="1"]{
+  --bg:#1A2220;--bg2:#1F2B27;--white:#243028;
+  --sage:#5A8F6A;--sage2:#4A7A58;--sage3:#2A4A35;--sage4:#1E2D25;
+  --text:#D4E8D8;--text2:#9AB89E;--text3:#5A7A5E;
+  --border:#2A4A35;--border2:#3A5A45;
+  --blue:#4A7DC9;--blue-l:#1A2535;
+  --red:#C04A4A;--red-l:#2A1A1A;
+  --gray:#5A6E5C;--gray-l:#1E2820;
+  --shadow:0 2px 10px rgba(0,0,0,.3);
+  --shadow2:0 4px 20px rgba(0,0,0,.4);
+}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 /* LOGIN */
-#login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999}
+#login-screen{position:fixed;inset:0;background:var(--bg);transition:background .3s;display:flex;align-items:center;justify-content:center;z-index:9999}
 .login-box{background:var(--white);border-radius:24px;padding:2.5rem 2rem;box-shadow:var(--shadow2);width:320px;text-align:center}
 .login-mascot{font-size:58px;margin-bottom:.5rem;animation:bounce 2s ease-in-out infinite}
 .login-title{font-size:20px;font-weight:800;margin-bottom:.2rem}
@@ -532,7 +529,7 @@ const save=()=>{
     DOC_REF.set(JSON.parse(JSON.stringify(G))).catch(e=>console.warn('Firestore sync error:',e));
   }catch(e){console.warn('Firestore save error:',e);}
 };
-const isOD=d=>d&&d<TODAY;
+const isOD=d=>d&&d.trim()&&d<TODAY;
 const stageById=id=>G.stages.find(s=>s.id===id)||{name:id,color:'#6B9E7A'};
 const randMascot=()=>MASCOTS[Math.floor(Math.random()*MASCOTS.length)];
 const getTpl=id=>G.templates.find(t=>t.id===id)||G.templates[0];
@@ -979,7 +976,7 @@ function paneInfo(p,secs){
     ${r('📅 接洽日期',p.contactDate||'',`inlineEdit(${p.id},'contactDate','${escH(p.contactDate||'')}','接洽日期')`)}
     ${r('💰 報價金額',p.price?'NT$ '+p.price:'',`inlineEdit(${p.id},'price','${escH(p.price||'')}','報價金額')`)}
     ${r('👥 案件來源',p.source||'',`inlineEdit(${p.id},'source','${escH(p.source||'')}','案件來源')`)}
-    ${r('🔔 下次追蹤',p.followup?(p.followup+(p.followupTime?' '+p.followupTime:'')):'',`inlineEdit(${p.id},'followup','${p.followup||''}','下次追蹤')`)}
+    ${p.followup?`<div><div class="info-label">🔔 下次追蹤</div><div style="display:flex;align-items:center;gap:6px"><div class="info-value" onclick="inlineEdit(${p.id},'followup','${p.followup||''}','下次追蹤')">${p.followup}${p.followupTime?' '+p.followupTime:''}</div><button class="ibtn" style="color:var(--red);font-size:11px" onclick="clearFollowup(${p.id})">✕ 清除</button></div></div>`:''}
     ${p.status==='closed'&&p.closedDate?r('✅ 結案日期',p.closedDate,''):''}
     ${p.status==='lost'&&p.lostDate?r('❌ 流標日期',p.lostDate,''):''}
     ${infoSec&&infoSec.enabled!==false?(infoSec.items||[]).filter(f=>infoVals[f.id]).map(f=>r(f.label,infoVals[f.id]||'',`inlineEditSD(${p.id},'sec-info','${f.id}','${escH(infoVals[f.id]||'')}','${escH(f.label)}')`)).join(''):''}
@@ -988,6 +985,27 @@ function paneInfo(p,secs){
   if(attrSec&&attrSec.enabled!==false&&selAttrs.length)h+=`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:5px">${escH(attrSec.label)}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${selAttrs.map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div></div>`;
   if(certSec&&certSec.enabled!==false&&selCerts.length)h+=`<div style="margin-top:11px"><div class="info-label" style="margin-bottom:5px">${escH(certSec.label)}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${selCerts.map(c=>`<span class="badge badge-cert">${escH(c)}</span>`).join('')}</div></div>`;
   return h+'</div>';
+}
+
+function clearFollowupFromCard(pid){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  p.followup='';p.followupTime='';p.remindBeforeN='';p.remindBeforeUnit='min';
+  save();renderTopStats();renderAlerts();renderProjects();
+}
+
+function clearFollowup(pid){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  if(!confirm('確定清除追蹤日期？'))return;
+  p.followup='';p.followupTime='';p.remindBeforeN='';p.remindBeforeUnit='min';
+  save();renderDetail();renderTopStats();renderAlerts();renderProjects();
+}
+
+function clearLogFollowup(pid,logIdx){
+  const p=G.projects.find(x=>x.id===pid);if(!p)return;
+  if(!confirm('確定清除此日誌的追蹤日期？'))return;
+  p.logs[logIdx].followup='';p.logs[logIdx].followupTime='';
+  // If this was the project's main followup, also clear that
+  save();renderDetail();
 }
 
 function inlineEdit(pid,field,oldVal,label){
@@ -1147,7 +1165,7 @@ function paneTodos(p,secs){
       <div class="cl-check ${t.done?'checked':''}" data-action="toggle-todo" data-i="${i}">${t.done?'✓':''}</div>
       <div class="todo-label" style="${t.done?'text-decoration:line-through;color:var(--text3)':''}">${escH(t.label)}</div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-        ${t.followup?`<div class="todo-dt ${isOD(t.followup)&&!t.done?'od':''}">📅 ${t.followup}${t.followupTime?' '+t.followupTime:''}</div>`:''}
+        ${t.followup?`<div style="display:flex;align-items:center;gap:4px"><div class="todo-dt ${isOD(t.followup)&&!t.done?'od':''}">📅 ${t.followup}${t.followupTime?' '+t.followupTime:''}</div><button class="ibtn" style="color:var(--red);font-size:10px;padding:1px 4px" data-action="clear-todo-followup" data-i="${i}">✕</button></div>`:''}
         ${t.done&&t.doneDate?`<div style="font-size:11px;color:var(--sage);font-weight:700">✅ ${t.doneDate}</div>`:''}
       </div>
       <button class="ibtn" data-action="edit-todo" data-i="${i}">✏️</button>
@@ -1168,7 +1186,7 @@ function paneLogs(p,secs){
       <div class="log-hdr"><div class="log-date">📅 ${l.date}</div><div style="display:flex;gap:4px"><button class="ibtn" data-action="edit-log" data-i="${i}">✏️</button><button class="ibtn" data-action="rm-log" data-i="${i}" style="color:var(--red)">✕</button></div></div>
       <div class="log-content" style="white-space:pre-wrap;line-height:1.7">${textToHTML(l.content)}</div>
       ${l.attrs&&l.attrs.length?`<div class="log-tags">${l.attrs.map(a=>`<span class="log-tag">${escH(a)}</span>`).join('')}</div>`:''}
-      ${l.followup?`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-top:5px">🔔 ${l.followup}${l.followupTime?' '+l.followupTime:''}</div>`:''}
+      ${l.followup?`<div style="font-size:11px;color:var(--blue);font-weight:700;margin-top:5px;display:flex;align-items:center;gap:6px">🔔 ${l.followup}${l.followupTime?' '+l.followupTime:''}<button class="ibtn" style="color:var(--red);font-size:10px;padding:1px 4px" onclick="clearLogFollowup(${p.id},${i})">✕</button></div>`:''}
     </div>`;
   });
   return h+'</div>';
@@ -1271,6 +1289,7 @@ function bindPaneEvents(p,secs){
       if(a==='add-todo')openTodoModal(p.id,null,secs);
       if(a==='edit-todo')openTodoModal(p.id,i,secs);
       if(a==='rm-todo'){p.todos.splice(i,1);save();renderDetail();}
+      if(a==='clear-todo-followup'){p.todos[i].followup='';p.todos[i].followupTime='';p.todos[i].remindBeforeN='';save();renderDetail();}
       // LOGS
       if(a==='add-log')openLogModal(p.id,null,secs);
       if(a==='edit-log')openLogModal(p.id,i,secs);

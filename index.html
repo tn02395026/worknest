@@ -217,10 +217,10 @@
 [data-dark="1"] .login-sub{color:#9FAAB8}
 
 /* ── Alarm ── */
-[data-dark="1"] [data-dark="1"] .alarm-popup{background:#242830;border-color:#2EB87A}
+[data-dark="1"] .alarm-popup{background:#242830;border-color:#2EB87A}
 [data-dark="1"] .alarm-title{color:#E8ECF0}
 [data-dark="1"] .alarm-msg{color:#C5D0DC}
-[data-dark="1"] [data-dark="1"] .alarm-snooze{background:#2D3340;border-color:#2EB87A;color:#2EB87A}
+[data-dark="1"] .alarm-snooze{background:#2D3340;border-color:#2EB87A;color:#2EB87A}
 [data-dark="1"] .snooze-opt{background:#2D3340;border-color:#363D4A;color:#C5D0DC}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Nunito','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -721,7 +721,18 @@ const save=()=>{
     DOC_REF.set(JSON.parse(JSON.stringify(G))).catch(e=>console.warn('Firestore sync error:',e));
   }catch(e){console.warn('Firestore save error:',e);}
 };
-const isOD=d=>d&&d.trim()&&d<TODAY;
+const isOD=(d,t)=>{
+  if(!d||!d.trim())return false;
+  if(d<TODAY)return true;  // 日期已過
+  if(d===TODAY&&t&&t.trim()){
+    // 同一天但時間已過
+    const now=new Date();
+    const [h,m]=(t||'').split(':').map(Number);
+    const target=new Date();target.setHours(h||0,m||0,0,0);
+    return now>target;
+  }
+  return false;
+};
 const stageById=id=>G.stages.find(s=>s.id===id)||{name:id,color:'#6B9E7A'};
 const randMascot=()=>MASCOTS[Math.floor(Math.random()*MASCOTS.length)];
 const getTpl=id=>G.templates.find(t=>t.id===id)||G.templates[0];
@@ -803,12 +814,12 @@ function renderToday(){
 
   G.projects.filter(p=>p.status==='active').forEach(p=>{
     // Project followup today or overdue
-    if(p.followup&&p.followup<=todayStr){
-      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:p.followup<todayStr,pid:p.id});
+    if(p.followup&&(p.followup<todayStr||(p.followup===todayStr&&isOD(p.followup,p.followupTime)))){
+      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:isOD(p.followup,p.followupTime),pid:p.id});
     }
     // Todos today or overdue
-    (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followup<=todayStr).forEach(t=>{
-      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:t.followup<todayStr,pid:p.id,tid:t.id});
+    (p.todos||[]).filter(t=>!t.done&&t.followup&&(t.followup<todayStr||(t.followup===todayStr&&isOD(t.followup,t.followupTime)))).forEach(t=>{
+      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:isOD(t.followup,t.followupTime),pid:p.id,tid:t.id});
     });
   });
 
@@ -931,7 +942,7 @@ function importData(input){
 // ── TOP STATS ─────────────────────────────────────
 function renderTopStats(){
   const t=G.projects.length,a=G.projects.filter(p=>p.status==='active').length,
-    od=G.projects.filter(p=>isOD(p.followup)&&p.status==='active').length,
+    od=G.projects.filter(p=>isOD(p.followup,p.followupTime)&&p.status==='active').length,
     cl=G.projects.filter(p=>p.status==='closed').length,lo=G.projects.filter(p=>p.status==='lost').length;
   document.getElementById('stats-row').innerHTML=`
     <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${t}</div><div class="stat-label">📋 全部</div></div>
@@ -941,7 +952,7 @@ function renderTopStats(){
     <div class="stat-card"><div class="stat-num" style="color:var(--gray)">${lo}</div><div class="stat-label">❌ 流標</div></div>`;
 }
 function renderAlerts(){
-  const od=G.projects.filter(p=>isOD(p.followup)&&p.status==='active');
+  const od=G.projects.filter(p=>isOD(p.followup,p.followupTime)&&p.status==='active');
   const alertMsgs=['快去看看我！','我在等你哦！','別忘了我～','拜託處理我！'];
   const alertMsg=alertMsgs[Math.floor(Date.now()/5000)%alertMsgs.length];
   document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
@@ -1039,7 +1050,7 @@ function cardHTML(p){
       ${p.price?`<span>💰 NT$${escH(p.price)}</span>`:''}
       ${p.source?`<span>👥 ${escH(p.source)}</span>`:''}
     </div>
-    ${todos.length?`<div class="card-todo">${todos.map(t=>`<div class="ctodo-item"><span class="ctodo-dot"></span><span>${escH(t.label)}</span>${t.followup?`<span style="margin-left:auto;font-size:10px;color:${isOD(t.followup)&&!t.done?'var(--red)':'var(--text3)'}">${t.followup}</span>`:''}</div>`).join('')}</div>`:''}
+    ${todos.length?`<div class="card-todo">${todos.map(t=>`<div class="ctodo-item"><span class="ctodo-dot"></span><span>${escH(t.label)}</span>${t.followup?`<span style="margin-left:auto;font-size:10px;color:${isOD(t.followup,t.followupTime)&&!t.done?'var(--red)':'var(--text3)'}">${t.followup}</span>`:''}</div>`).join('')}</div>`:''}
   </div>`;
 }
 
@@ -2567,17 +2578,17 @@ function checkAlarms(){
     if(p.followup&&p.followupTime&&p.status==='active'){
       const trigger=getTriggerTime(p.followup,p.followupTime,p.remindBeforeN,p.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='proj-'+p.id+'-'+p.followup+p.followupTime;
-        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'專案追蹤',proj:p.name});}
+        if(diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'專案追蹤',proj:p.name});}
     }
     (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followupTime).forEach(t=>{
       const trigger=getTriggerTime(t.followup,t.followupTime,t.remindBeforeN,t.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='todo-'+t.id;
-        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:t.label,proj:p.name});}
+        if(diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:t.label,proj:p.name});}
     });
     (p.logs||[]).filter(l=>l.followup&&l.followupTime).forEach(l=>{
       const trigger=getTriggerTime(l.followup,l.followupTime,l.remindBeforeN,l.remindBeforeUnit);
       if(trigger){const diff=(trigger-now)/60000;const aid='log-'+l.id;
-        if(diff>=-5&&diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
+        if(diff<=1&&!_shownAlarms.has(aid))items.push({id:aid,label:'日誌追蹤：'+l.content.slice(0,20),proj:p.name});}
     });
   });
   items.forEach(item=>{_shownAlarms.add(item.id);showAlarmPopup(item);});

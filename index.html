@@ -2593,7 +2593,8 @@ function openManageBasicFields(){
     <div id="bfd-list">${buildRows()}</div>
     <div class="add-row" style="margin-top:8px"><input type="text" id="new-bf-label" placeholder="新欄位名稱，例：本案佣金"><button class="btn btn-sm btn-p" onclick="addBF()">＋ 新增</button></div>`,
   ()=>{
-    bfs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
+    // Save labels from inputs
+    _editBFs.forEach((f,i)=>{const el=document.getElementById('bfl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
     rebuildBasicFieldsWrap();
   });
@@ -3059,13 +3060,26 @@ function initApp(){
     if(doc.exists){
       const remoteData=doc.data();
       if(remoteData&&remoteData.projects){
+        // Smart merge: use Firebase data but prefer localStorage for per-project customizations
+        const localData=JSON.parse(localStorage.getItem('zz5_data')||'{}');
         G=remoteData;
-        // Ensure all projects have required fields
+        // If localStorage is newer (has more data), merge per-project fields
+        if(localData.projects){
+          G.projects.forEach(p=>{
+            const localP=localData.projects.find(x=>x.id===p.id);
+            if(localP){
+              // Keep projBasicFields from whichever has more data
+              if(localP.projBasicFields&&!p.projBasicFields)p.projBasicFields=localP.projBasicFields;
+              if(localP.certPrices&&localP.certPrices.length&&!(p.certPrices&&p.certPrices.length))p.certPrices=localP.certPrices;
+            }
+          });
+        }
         G.projects.forEach(p=>{
           if(!p.sectionData)p.sectionData={};
           if(!p.projSections)p.projSections=null;
           if(p.projStageIds===undefined)p.projStageIds=null;
           if(!p.customBasicFields)p.customBasicFields={};
+          if(!p.certPrices)p.certPrices=[];
         });
         if(!G.tabOrder)G.tabOrder=['info','contacts','stages','checklist','todos','logs','notes'];
         if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));

@@ -1994,7 +1994,7 @@ function openProjModal(pid){
   _selStage=p.stage;_selTpl=p.templateId||G.templates[0]?.id;
 
   // Working copies
-  _editSecs=JSON.parse(JSON.stringify(getEffSecs(p)));
+  _editSecs=JSON.parse(JSON.stringify(getEffSecs(p)));window._editKVPid=p?p.id:null;
   // Load project-specific basic fields, or fall back to global default
   _editBFs=JSON.parse(JSON.stringify(p.projBasicFields||G.basicFieldDefs||DEFAULT_BASIC_FIELDS));
   console.log('openProjModal: loaded _editBFs fields='+JSON.stringify(_editBFs.map(f=>f.label)), 'from projBasicFields='+(p.projBasicFields?'yes':'no (using global)'));
@@ -2381,18 +2381,20 @@ function openManageKVSection(secId){
     <div id="kf-list">${rows}</div>
     <div class="add-row"><input type="text" id="new-kf" placeholder="新欄位名稱"><button class="btn btn-sm btn-p" onclick="addKVField('${secId}')">＋ 新增</button></div>`,
   ()=>{
-    // Save updated labels
     (sec.items||[]).forEach((f,i)=>{const el=document.getElementById('kf-lbl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
-    // Re-render the KV fields area preserving existing values
     const container=document.getElementById('kv-fields-'+secId);
     if(container){
       const existingVals={};
       container.querySelectorAll('input[id^="kv-"]').forEach(inp=>{
-        // id format: kv-{secId}-{fid}
         const parts=inp.id.split('-');const fid=parts.slice(2).join('-');existingVals[fid]=inp.value;
       });
-      container.innerHTML=(sec.items||[]).map(f=>`<div class="form-row"><label class="form-label">${escH(f.label)}</label><input type="text" id="kv-${secId}-${f.id}" value="${escH(existingVals[f.id]||'')}"></div>`).join('');
+      container.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals[f.id]||'')+'"></div>').join('');
+    }
+    // Save to project immediately
+    if(window._editKVPid){
+      const proj=G.projects.find(x=>x.id===window._editKVPid);
+      if(proj){proj.projSections=JSON.parse(JSON.stringify(_editSecs));save();}
     }
   });
   window._editKVSecId=secId;

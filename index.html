@@ -2414,11 +2414,12 @@ function rmKVField(secId,i){
   sec.items.splice(i,1);
   const list=document.getElementById('kf-list');
   if(list){
-    list.innerHTML=(sec.items||[]).map((f,idx)=>
-      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+    list.innerHTML=(sec.items||[]).map((f,idx)=>{
+      const esc_sid=secId.replace(/'/g,"\'");
+      return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
       +'<input type="text" value="'+escH(f.label)+'" id="kf-lbl-'+idx+'" style="flex:1">'
-      +'<button class="btn btn-sm btn-danger" onclick="rmKVField(''+secId+'','+idx+')">✕</button>'
-      +'</div>').join('');
+      +'<button class="btn btn-sm btn-danger" onclick="rmKVField(&apos;'+esc_sid+'&apos;,'+idx+')">✕</button>'
+      +'</div>';}).join('');
   }
   const container=document.getElementById('kv-fields-'+secId);
   if(container){

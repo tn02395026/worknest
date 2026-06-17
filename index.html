@@ -3119,6 +3119,8 @@ function initApp(){
               // Keep projBasicFields from whichever has more data
               if(localP.projBasicFields&&!p.projBasicFields)p.projBasicFields=localP.projBasicFields;
               if(localP.certPrices&&localP.certPrices.length&&!(p.certPrices&&p.certPrices.length))p.certPrices=localP.certPrices;
+              // Keep projSections from localStorage (user may have edited fields)
+              if(localP.projSections)p.projSections=localP.projSections;
             }
           });
         }

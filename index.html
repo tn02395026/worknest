@@ -1373,7 +1373,7 @@ function paneInfo(p,secs){
   const r=(l,v,fn)=>v?`<div><div class="info-label">${escH(l)}</div><div class="info-value" onclick="${fn}">${escH(v)}</div></div>`:'';
   let h=`<div class="d-pane active"><div class="info-grid">
     ${r('📅 接洽日期',p.contactDate||'',`inlineEdit(${p.id},'contactDate','${escH(p.contactDate||'')}','接洽日期')`)}
-    ${(()=>{const _t=(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);const _d=_t>0?_t.toLocaleString():(p.price||'');return _d?r('💰 報價金額','NT$ '+_d,'inlineEdit('+p.id+',\'price\',\''+escH(p.price||'')+'\',\'報價金額\')'):''})()','報價金額')`)}
+    ${(()=>{const _t=(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);const _d=_t>0?_t.toLocaleString():(p.price||'');return _d?r('💰 報價金額','NT$ '+_d,'inlineEdit('+p.id+',\'price\',\''+escH(p.price||'')+'\',\'報價金額\')'):'';})()}
     ${r('👥 案件來源',p.source||'',`inlineEdit(${p.id},'source','${escH(p.source||'')}','案件來源')`)}
     ${p.followup?`<div><div class="info-label">🔔 下次追蹤</div><div style="display:flex;align-items:center;gap:6px"><div class="info-value" onclick="inlineEdit(${p.id},'followup','${p.followup||''}','下次追蹤')">${p.followup}${p.followupTime?' '+p.followupTime:''}</div><button class="ibtn" style="color:var(--red);font-size:11px" onclick="clearFollowup(${p.id})">✕ 清除</button></div></div>`:''}
     ${p.status==='closed'&&p.closedDate?r('✅ 結案日期',p.closedDate,''):''}

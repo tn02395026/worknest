@@ -2526,19 +2526,19 @@ function closeContactPanel(){
 function openManageContactFieldsFromForm(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
   window._editContactSec=sec;window._editContactPid=null;
-  // Show inline panel inside the current modal instead of opening a new modal
-  const modalBody=document.querySelector('.modal-body');
-  if(!modalBody)return;
-  const panel=document.createElement('div');
-  panel.id='contact-inline-panel';
-  panel.style.cssText='position:absolute;inset:0;background:var(--white);z-index:10;overflow-y:auto;padding:1.2rem';
-  panel.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
-    +'<button class="btn btn-sm" onclick="closeContactPanel()">← 返回</button>'
-    +'<div style="font-weight:700;font-size:14px">管理聯絡人欄位</div></div>'
-    +'<div id="cr-list"></div>'
-    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>';
-  modalBody.style.position='relative';
-  modalBody.appendChild(panel);
+  // Store current modal state to restore after
+  const prevBody=document.querySelector('.modal-body')?.innerHTML;
+  const prevTitle=document.querySelector('.modal-hdr span')?.textContent;
+  const prevOK=document.getElementById('modal-ok');
+  const prevOKClone=prevOK?prevOK.cloneNode(true):null;
+  openModal('管理聯絡人欄位',
+    '<div id="cr-list"></div>'
+    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
+    ()=>{
+      // Save labels then restore edit form
+      (window._editContactSec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el&&el.value.trim())r.label=el.value.trim();});
+      closeModal();
+    });
   setTimeout(()=>{rebuildRolesList();},80);
 }
 function addContactRoleForm(){

@@ -790,9 +790,18 @@ function renderRevenuePage(){
   const selYear=document.getElementById('rev-year')?.value||'';
   const selMonth=document.getElementById('rev-month')?.value||'';
   const selStatus=document.getElementById('rev-status')?.value||'';
+  // Get effective year/month: closed uses closedDate, active uses card year/month
+  const getProjDate=(p)=>{
+    if(p.status==='closed'&&p.closedDate){
+      const parts=p.closedDate.split('-');
+      return{year:parseInt(parts[0]),month:parseInt(parts[1])};
+    }
+    return{year:p.year||new Date().getFullYear(),month:p.month||1};
+  };
   let projs=G.projects.filter(p=>{
-    if(selYear&&String(p.year||new Date().getFullYear())!==selYear)return false;
-    if(selMonth&&String(p.month||1)!==selMonth)return false;
+    const pd=getProjDate(p);
+    if(selYear&&String(pd.year)!==selYear)return false;
+    if(selMonth&&String(pd.month)!==selMonth)return false;
     if(selStatus&&p.status!==selStatus)return false;
     return true;
   });
@@ -869,7 +878,7 @@ function renderRevenuePage(){
     projRows+='<div style="background:var(--white);border-radius:var(--rsm);border:1.5px solid var(--border);padding:10px 13px;margin-bottom:7px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center">'
       +'<div><div style="font-size:13px;font-weight:800;cursor:pointer;color:var(--text)" onclick="goPage(\'projects\');openProject('+p.id+')">'+escH(p.name)+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+(p.year||'')+'年'+(p.month||'')+'月 · '+escH(stageById(p.stage).name)+' · '+(p.status==='closed'?'✅ 結案':p.status==='lost'?'❌ 流標':'🌱 進行中')+'</div></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+getProjDate(p).year+'年'+getProjDate(p).month+'月'+(p.status==='closed'&&p.closedDate?' (結案'+p.closedDate+')':'')+'<span style="margin:0 4px">·</span>'+escH(stageById(p.stage).name)+' · '+(p.status==='closed'?'✅ 結案':p.status==='lost'?'❌ 流標':'🌱 進行中')+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--sage)">NT$ '+amt.toLocaleString()+'</div>'
       +'<button class="btn btn-sm btn-ghost" style="font-size:11px;margin-top:3px" onclick="openCertPrices('+p.id+')">✏️ 分項報價</button></div>'
       +'</div>'+cpRows+'</div>';
@@ -1152,7 +1161,10 @@ function renderAlerts(){
   document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
 }
 function renderYearFilterRevenue(){
-  const years=[...new Set(G.projects.map(p=>p.year||new Date().getFullYear()))].sort((a,b)=>b-a);
+  const years=[...new Set(G.projects.map(p=>{
+    if(p.status==='closed'&&p.closedDate)return parseInt(p.closedDate.split('-')[0]);
+    return p.year||new Date().getFullYear();
+  }))].sort((a,b)=>b-a);
   const sel=document.getElementById('rev-year');if(!sel)return;
   sel.innerHTML='<option value="">全部年份</option>'+years.map(y=>`<option value="${y}">${y}年</option>`).join('');
 }
@@ -2484,23 +2496,31 @@ function rmKVField(secId,i){
 function openManageContactFieldsFromForm(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
   window._editContactSec=sec;window._editContactPid=null;
-  let rolesH=(sec.roles||[]).map((r,ri)=>`
-    <div style="margin-bottom:12px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
-        <input type="text" value="${escH(r.label)}" id="cr-lbl-${ri}" style="flex:1;font-weight:700">
-        <button class="btn btn-sm btn-danger" onclick="rmContactRoleForm(${ri})">✕ 移除</button>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位：</div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px">${r.fields.map((f,fi)=>`<span class="tag-pill" onclick="rmContactFieldForm(${ri},${fi})">${escH(f.label)} ✕</span>`).join('')}</div>
-      <div class="add-row" style="margin-top:5px"><input type="text" id="cf-new-${ri}" placeholder="新增欄位"><button class="btn btn-sm" onclick="addContactFieldForm(${ri})">＋</button></div>
-    </div>`).join('');
-  openModal(`管理「${escH(sec.label)}」`,`
-    <div id="cr-list">${rolesH}</div>
-    <div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱"><button class="btn btn-sm btn-p" onclick="addContactRoleForm()">＋ 新增角色</button></div>`,
+
+  const buildRolesH=()=>(sec.roles||[]).map((r,ri)=>
+    '<div class="drag-item" draggable="true" data-ri="'+ri+'" style="margin-bottom:10px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">'
+    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
+    +'<span style="cursor:grab;color:var(--text3);font-size:16px">⠿</span>'
+    +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
+    +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（上下拖曳排序）：</div>'
+    +'<div id="cf-list-'+ri+'" style="display:flex;flex-direction:column;gap:4px">'+r.fields.map((f,fi)=>'<div class="drag-item" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab;display:flex;align-items:center;gap:6px;padding:4px 8px"><span style="color:var(--text3)">⠿</span><span style="flex:1;font-size:13px">'+escH(f.label)+'</span><button class="btn btn-sm btn-danger" onclick="rmContactField('+ri+','+fi+')" style="padding:2px 7px;font-size:11px">✕</button></div>').join('')+'</div>'
+    +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
+    +'</div>').join('');
+
+  const rebind=()=>{
+    bindRoleDrag();
+    (sec.roles||[]).forEach((_,ri)=>rebuildFieldList(ri));
+  };
+
+  openModal('管理聯絡人欄位',
+    '<div id="cr-list">'+buildRolesH()+'</div>'
+    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增聯絡人角色，例：業主代理人"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
   ()=>{
     (sec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el)r.label=el.value.trim()||r.label;});
     closeModal();
   });
+  setTimeout(rebind,80);
 }
 function addContactRoleForm(){
   const label=document.getElementById('cr-new-label')?.value?.trim();if(!label)return;

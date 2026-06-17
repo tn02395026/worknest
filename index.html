@@ -1449,7 +1449,7 @@ function paneContacts(p,secs){
         <button class="ibtn" data-action="edit-contact" data-role="${role.id}">✏️ 編輯</button>
       </div>`;
     if(!hasData)h+=`<div style="font-size:13px;color:var(--text3);padding:11px;background:var(--sage4);border-radius:var(--rsm);border:1.5px dashed var(--border)">尚未填寫${escH(role.label)}資訊</div>`;
-    else h+=`<div class="contact-card"><div class="contact-name">${escH(d[role.fields[0]?.id]||'')} <span style="font-size:12px;font-weight:400;color:var(--text3)">${escH(d[role.fields[1]?.id]||'')}</span></div>${role.fields.slice(2).map(f=>d[f.id]?`<div class="contact-row">📌 ${escH(f.label)}：${escH(d[f.id])}</div>`:'').join('')}</div>`;
+    else h+=`<div class="contact-card">${role.fields.filter(f=>d[f.id]).map(f=>`<div style="display:flex;gap:6px;font-size:13px;padding:3px 0"><span style="color:var(--text3);min-width:60px;flex-shrink:0">${escH(f.label)}</span><span style="color:var(--text);font-weight:500">${escH(d[f.id])}</span></div>`).join('')}</div>`;
     h+=`</div>`;
   });
   return h+'</div>';
@@ -1469,7 +1469,7 @@ function openManageContactFields(pid){
     +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
     +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
     +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（點擊刪除）：</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:4px" id="cf-list-'+ri+'">'+r.fields.map((f,fi)=>'<span class="tag-pill" onclick="rmContactField('+ri+','+fi+')">'+escH(f.label)+' ✕</span>').join('')+'</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:4px" id="cf-list-'+ri+'">'+r.fields.map((f,fi)=>'<span class="tag-pill" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab">'+escH(f.label)+' <span onclick="rmContactField('+ri+','+fi+')" style="cursor:pointer">✕</span></span>').join('')+'</div>'
     +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱（拖曳⠿可排序）"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
     +'</div>').join('');
 
@@ -1514,7 +1514,10 @@ function openManageContactFields(pid){
     // sec is already directly from p.projSections, so changes are live
     save();closeModal();renderDetail();
   });
-  setTimeout(bindRoleDrag,80);
+  setTimeout(()=>{
+    bindRoleDrag();
+    (sec.roles||[]).forEach((_,ri)=>rebuildFieldList(ri));
+  },80);
 }
 
 window._editContactSec=null;window._editContactPid=null;
@@ -1532,9 +1535,33 @@ function rmContactRole(ri){
 }
 function addContactField(ri){
   const v=document.getElementById('cf-new-'+ri)?.value?.trim();if(!v)return;
-  const fid='cf'+Date.now();
-  window._editContactSec.roles[ri].fields.push({id:fid,label:v});
-  closeModal();openManageContactFields(window._editContactPid);
+  window._editContactSec.roles[ri].fields.push({id:'cf'+Date.now(),label:v});
+  document.getElementById('cf-new-'+ri).value='';
+  rebuildFieldList(ri);
+}
+
+function rebuildFieldList(ri){
+  const list=document.getElementById('cf-list-'+ri);if(!list)return;
+  const fields=window._editContactSec.roles[ri].fields||[];
+  list.innerHTML=fields.map((f,fi)=>
+    '<span class="tag-pill" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab">'
+    +escH(f.label)+' <span onclick="rmContactField('+ri+','+fi+')" style="cursor:pointer;margin-left:3px">✕</span></span>'
+  ).join('');
+  let dragFi=null;
+  list.querySelectorAll('.tag-pill[draggable]').forEach(el=>{
+    el.addEventListener('dragstart',e=>{dragFi=parseInt(el.dataset.fi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
+    el.addEventListener('dragend',()=>{el.style.opacity='1';});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.outline='2px solid var(--sage)';});
+    el.addEventListener('dragleave',()=>{el.style.outline='';});
+    el.addEventListener('drop',e=>{
+      e.preventDefault();el.style.outline='';
+      const toFi=parseInt(el.dataset.fi);
+      if(dragFi===null||dragFi===toFi)return;
+      const fs=window._editContactSec.roles[ri].fields;
+      const item=fs.splice(dragFi,1)[0];fs.splice(toFi,0,item);
+      dragFi=null;rebuildFieldList(ri);
+    });
+  });
 }
 function rmContactField(ri,fi){
   window._editContactSec.roles[ri].fields.splice(fi,1);

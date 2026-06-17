@@ -1101,6 +1101,28 @@ function initDarkMode(){
 }
 
 // ── EXPORT / IMPORT ───────────────────────────────────
+function openGlobalContactSettings(){
+  const tpl=G.templates&&G.templates.length?G.templates[0]:null;
+  let sec=null;
+  if(tpl)sec=tpl.sections?.find(s=>s.id==='sec-contacts');
+  if(!sec){
+    // Find from projects or use default
+    const anyProj=G.projects.find(p=>p.projSections);
+    if(anyProj)sec=anyProj.projSections.find(s=>s.id==='sec-contacts');
+  }
+  if(!sec){alert('找不到聯絡人公版設定，請先新增一個專案');return;}
+  const secCopy=JSON.parse(JSON.stringify(sec));
+  window._editContactSec=secCopy;window._editContactPid=null;
+  openContactFieldsModal(secCopy,()=>{
+    // Save to all templates
+    (G.templates||[]).forEach(t=>{
+      const s=t.sections?.find(s=>s.id==='sec-contacts');
+      if(s)s.roles=JSON.parse(JSON.stringify(secCopy.roles));
+    });
+    save();closeModal();
+  });
+}
+
 function exportData(){
   const data=JSON.stringify(G,null,2);
   const blob=new Blob([data],{type:'application/json'});
@@ -1452,54 +1474,16 @@ function paneContacts(p,secs){
 }
 
 function openContactFieldsModal(sec, onSave){
-  const buildRolesH=()=>(sec.roles||[]).map((r,ri)=>
-    '<div class="drag-item" draggable="true" data-ri="'+ri+'" style="margin-bottom:10px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">'
-    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
-    +'<span style="cursor:grab;color:var(--text3);font-size:16px">⠿</span>'
-    +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
-    +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（上下拖曳排序）：</div>'
-    +'<div id="cf-list-'+ri+'" style="display:flex;flex-direction:column;gap:4px">'
-    +r.fields.map((f,fi)=>'<div class="drag-item" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="display:flex;align-items:center;gap:6px;padding:4px 8px"><span style="color:var(--text3)">⠿</span><span style="flex:1;font-size:13px">'+escH(f.label)+'</span><button class="btn btn-sm btn-danger" onclick="rmContactField('+ri+','+fi+')" style="padding:2px 7px;font-size:11px">✕</button></div>').join('')
-    +'</div>'
-    +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
-    +'</div>').join('');
-
-  const bindAll=()=>{
-    // Role drag
-    let dragRi=null;
-    document.querySelectorAll('#cr-list > .drag-item').forEach(el=>{
-      el.addEventListener('dragstart',e=>{
-        sec.roles.forEach((r,ri)=>{const inp=document.getElementById('cr-lbl-'+ri);if(inp)r.label=inp.value.trim()||r.label;});
-        dragRi=parseInt(el.dataset.ri);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';
-      });
-      el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#cr-list .drag-item').forEach(x=>x.style.borderTop='');});
-      el.addEventListener('dragover',e=>{e.preventDefault();if(el.dataset.ri)el.style.borderTop='2px solid var(--sage)';});
-      el.addEventListener('dragleave',()=>{el.style.borderTop='';});
-      el.addEventListener('drop',e=>{
-        e.preventDefault();document.querySelectorAll('#cr-list .drag-item').forEach(x=>x.style.borderTop='');
-        if(el.dataset.fi!==undefined)return; // ignore field drops on role
-        const to=parseInt(el.dataset.ri);
-        if(dragRi===null||dragRi===to)return;
-        const item=sec.roles.splice(dragRi,1)[0];sec.roles.splice(to,0,item);
-        dragRi=null;
-        document.getElementById('cr-list').innerHTML=buildRolesH();
-        bindAll();
-      });
-    });
-    // Field drag within each role
-    sec.roles.forEach((_,ri)=>rebuildFieldList(ri));
-  };
-
-  openModal('管理聯絡人欄位',
-    '<div id="cr-list">'+buildRolesH()+'</div>'
-    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
-    ()=>{
-      sec.roles.forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el&&el.value.trim())r.label=el.value.trim();});
-      onSave();
-    });
-  setTimeout(bindAll,80);
+  window._editContactSec=sec;
+  const initHTML='<div id="cr-list"></div>'
+    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>';
+  openModal('管理聯絡人欄位', initHTML, ()=>{
+    (sec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el&&el.value.trim())r.label=el.value.trim();});
+    onSave();
+  });
+  setTimeout(()=>{rebuildRolesList();}, 80);
 }
+
 
 function openManageContactFields(pid){
   const p=G.projects.find(x=>x.id===pid);if(!p)return;
@@ -1510,27 +1494,103 @@ function openManageContactFields(pid){
 }
 
 window._editContactSec=null;window._editContactPid=null;
+function bindRoleDrag(){
+  let dragRi=null;
+  // Only bind to DIRECT children of #cr-list (role items, not field items inside)
+  document.querySelectorAll('#cr-list > .drag-item[data-ri]').forEach(el=>{
+    el.addEventListener('dragstart',e=>{
+      if(e.target.closest('[data-fi]'))return; // ignore if dragging a field
+      (window._editContactSec.roles||[]).forEach((r,ri)=>{const inp=document.getElementById('cr-lbl-'+ri);if(inp)r.label=inp.value.trim()||r.label;});
+      dragRi=parseInt(el.dataset.ri);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';
+      e.stopPropagation();
+    });
+    el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#cr-list > .drag-item').forEach(x=>x.style.borderTop='');});
+    el.addEventListener('dragover',e=>{
+      if(dragRi===null)return; // only respond when dragging a role
+      e.preventDefault();e.stopPropagation();el.style.borderTop='2px solid var(--sage)';
+    });
+    el.addEventListener('dragleave',e=>{if(!el.contains(e.relatedTarget))el.style.borderTop='';});
+    el.addEventListener('drop',e=>{
+      if(dragRi===null)return;
+      e.preventDefault();e.stopPropagation();
+      document.querySelectorAll('#cr-list > .drag-item').forEach(x=>x.style.borderTop='');
+      const to=parseInt(el.dataset.ri);
+      if(isNaN(to)||dragRi===to)return;
+      (window._editContactSec.roles||[]).forEach((r,ri)=>{const inp=document.getElementById('cr-lbl-'+ri);if(inp)r.label=inp.value.trim()||r.label;});
+      const roles=window._editContactSec.roles;
+      const item=roles.splice(dragRi,1)[0];roles.splice(to,0,item);
+      dragRi=null;rebuildRolesList();
+    });
+  });
+}
+
+function rebuildRolesList(){
+  const list=document.getElementById('cr-list');if(!list)return;
+  list.innerHTML=(window._editContactSec.roles||[]).map((r,ri)=>
+    '<div class="drag-item" draggable="true" data-ri="'+ri+'" style="margin-bottom:10px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">'
+    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
+    +'<span style="cursor:grab;color:var(--text3);font-size:16px">⠿</span>'
+    +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
+    +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位：</div>'
+    +'<div id="cf-list-'+ri+'" style="display:flex;flex-direction:column;gap:4px"></div>'
+    +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
+    +'</div>').join('');
+  bindRoleDrag();
+  (window._editContactSec.roles||[]).forEach((_,ri)=>rebuildFieldList(ri));
+}
+
 function addContactRole(){
-  const label=document.getElementById('cr-new-label')?.value?.trim();if(!label)return;
+  const inp=document.getElementById('cr-new-label');
+  const label=inp?.value?.trim();if(!label)return;
   if(!window._editContactSec.roles)window._editContactSec.roles=[];
-  const ri=window._editContactSec.roles.length;
-  window._editContactSec.roles.push({id:'cr'+Date.now(),label,fields:[{id:'cf1',label:'姓名'},{id:'cf2',label:'電話'},{id:'cf3',label:'信箱'}]});
-  closeModal();openManageContactFields(window._editContactPid);
+  (window._editContactSec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el)r.label=el.value.trim()||r.label;});
+  window._editContactSec.roles.push({id:'cr'+Date.now(),label,fields:[{id:'cf1',label:'姓名'},{id:'cf2',label:'電話'}]});
+  if(inp)inp.value='';
+  rebuildRolesList();
 }
 function rmContactRole(ri){
   if(!confirm('確定移除此聯絡人角色？'))return;
+  (window._editContactSec.roles||[]).forEach((r,i)=>{const el=document.getElementById('cr-lbl-'+i);if(el)r.label=el.value.trim()||r.label;});
   window._editContactSec.roles.splice(ri,1);
-  closeModal();openManageContactFields(window._editContactPid);
+  rebuildRolesList();
 }
+function rebuildFieldList(ri){
+  const list=document.getElementById('cf-list-'+ri);if(!list)return;
+  const fields=window._editContactSec.roles[ri].fields||[];
+  list.innerHTML=fields.map((f,fi)=>
+    '<div class="drag-item" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="display:flex;align-items:center;gap:6px;padding:4px 8px">'
+    +'<span style="color:var(--text3)">⠿</span>'
+    +'<span style="flex:1;font-size:13px">'+escH(f.label)+'</span>'
+    +'<button class="btn btn-sm btn-danger" onclick="rmContactField('+ri+','+fi+')" style="padding:2px 7px;font-size:11px">✕</button>'
+    +'</div>').join('');
+  let dfi=null;
+  list.querySelectorAll('.drag-item').forEach(el=>{
+    el.addEventListener('dragstart',e=>{dfi=parseInt(el.dataset.fi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
+    el.addEventListener('dragend',()=>{el.style.opacity='1';list.querySelectorAll('.drag-item').forEach(x=>x.style.outline='');});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.outline='2px solid var(--sage)';});
+    el.addEventListener('dragleave',()=>{el.style.outline='';});
+    el.addEventListener('drop',e=>{
+      e.preventDefault();list.querySelectorAll('.drag-item').forEach(x=>x.style.outline='');
+      const to=parseInt(el.dataset.fi);
+      if(dfi===null||dfi===to)return;
+      const fs=window._editContactSec.roles[ri].fields;
+      const item=fs.splice(dfi,1)[0];fs.splice(to,0,item);
+      dfi=null;rebuildFieldList(ri);
+    });
+  });
+}
+
 function addContactField(ri){
-  const v=document.getElementById('cf-new-'+ri)?.value?.trim();if(!v)return;
-  const fid='cf'+Date.now();
-  window._editContactSec.roles[ri].fields.push({id:fid,label:v});
-  closeModal();openManageContactFields(window._editContactPid);
+  const inp=document.getElementById('cf-new-'+ri);
+  const v=inp?.value?.trim();if(!v)return;
+  window._editContactSec.roles[ri].fields.push({id:'cf'+Date.now(),label:v});
+  if(inp)inp.value='';
+  rebuildFieldList(ri);
 }
 function rmContactField(ri,fi){
   window._editContactSec.roles[ri].fields.splice(fi,1);
-  closeModal();openManageContactFields(window._editContactPid);
+  rebuildFieldList(ri);
 }
 
 // ── PANE: STAGES ──────────────────────────────────
@@ -2463,7 +2523,20 @@ function rmKVField(secId,i){
 function openManageContactFieldsFromForm(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
   window._editContactSec=sec;window._editContactPid=null;
-  openContactFieldsModal(sec, ()=>{closeModal();});
+  // Show inline panel inside the current modal instead of opening a new modal
+  const modalBody=document.querySelector('.modal-body');
+  if(!modalBody)return;
+  const panel=document.createElement('div');
+  panel.id='contact-inline-panel';
+  panel.style.cssText='position:absolute;inset:0;background:var(--white);z-index:10;overflow-y:auto;padding:1.2rem';
+  panel.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'
+    +'<button class="btn btn-sm" onclick="document.getElementById('contact-inline-panel').remove()">← 返回</button>'
+    +'<div style="font-weight:700;font-size:14px">管理聯絡人欄位</div></div>'
+    +'<div id="cr-list"></div>'
+    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>';
+  modalBody.style.position='relative';
+  modalBody.appendChild(panel);
+  setTimeout(()=>{rebuildRolesList();},80);
 }
 function addContactRoleForm(){
   const label=document.getElementById('cr-new-label')?.value?.trim();if(!label)return;
@@ -2843,6 +2916,11 @@ function renderSettings(){
       <button class="btn btn-sm btn-p" onclick="addGlobalBF()">＋ 新增</button>
     </div>
   </div>
+  <div class="set-card">
+    <div class="set-title">👤 公版聯絡人欄位</div>
+    <div class="set-hint">設定新增專案時，聯絡人區塊預設的角色和欄位。修改後只影響之後新增的專案。</div>
+    <button class="btn btn-sm btn-p" onclick="openGlobalContactSettings()" style="margin-top:4px">✏️ 管理公版聯絡人</button>
+  </div>
   <div class="set-card"><div class="set-title">🗂️ 全局工作階段</div><div class="set-hint">拖曳調整順序，每個專案可在「🗂️ 階段」分頁獨立調整，不影響全局設定</div><div id="drag-stages">`;
   G.stages.forEach((s,i)=>{
     h+=`<div class="drag-item" draggable="true" data-i="${i}"><span class="drag-handle">⠿</span><span class="color-dot" style="background:${s.color}"></span><span style="flex:1;font-size:13px;font-weight:700">${escH(s.name)}</span><span style="font-size:11px;color:var(--text3);padding:2px 8px;background:var(--bg2);border-radius:20px">${i+1}</span><button class="pill-rm" data-rm-stage="${s.id}">✕</button></div>`;
@@ -2889,6 +2967,54 @@ function renderSettings(){
   }));
   document.getElementById('btn-new-tpl').addEventListener('click',openNewTpl);
   renderGBFList();setTimeout(bindGBFDrag,80);
+  renderDefaultContactRoles();
+}
+
+function renderDefaultContactRoles(){
+  const el=document.getElementById('default-contact-roles');if(!el)return;
+  const tpl=G.templates&&G.templates[0];
+  if(!tpl)return;
+  const contactSec=tpl.sections&&tpl.sections.find(s=>s.id==='sec-contacts');
+  if(!contactSec){el.innerHTML='<div class="hint">找不到聯絡人區塊</div>';return;}
+  el.innerHTML=(contactSec.roles||[]).map((r,ri)=>
+    '<div style="margin-bottom:10px;padding:10px;background:var(--bg2);border-radius:var(--rsm)">'
+    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+    +'<span style="font-weight:700;font-size:13px">👤 '+escH(r.label)+'</span>'
+    +'<button class="btn btn-sm btn-danger" style="margin-left:auto" onclick="rmDefaultContactRole('+ri+')">✕ 移除</button></div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">'
+    +r.fields.map((f,fi)=>'<span class="chip">'+escH(f.label)+' <span onclick="rmDefaultContactField('+ri+','+fi+')" style="cursor:pointer">✕</span></span>').join('')
+    +'</div>'
+    +'<div class="add-row"><input type="text" id="dcf-new-'+ri+'" placeholder="新增欄位"><button class="btn btn-sm" onclick="addDefaultContactField('+ri+')">＋</button></div>'
+    +'</div>'
+  ).join('')
+  +'<div class="add-row"><input type="text" id="dcr-new" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addDefaultContactRole()">＋ 新增角色</button></div>';
+}
+function getDefaultContactSec(){
+  const tpl=G.templates&&G.templates[0];if(!tpl)return null;
+  return tpl.sections&&tpl.sections.find(s=>s.id==='sec-contacts');
+}
+function rmDefaultContactRole(ri){
+  const sec=getDefaultContactSec();if(!sec)return;
+  if(!confirm('確定移除此角色？'))return;
+  sec.roles.splice(ri,1);save();renderDefaultContactRoles();
+}
+function addDefaultContactRole(){
+  const sec=getDefaultContactSec();if(!sec)return;
+  const label=document.getElementById('dcr-new')?.value?.trim();if(!label)return;
+  sec.roles.push({id:'cr'+Date.now(),label,fields:[{id:'cf1',label:'姓名'},{id:'cf2',label:'電話'}]});
+  document.getElementById('dcr-new').value='';
+  save();renderDefaultContactRoles();
+}
+function rmDefaultContactField(ri,fi){
+  const sec=getDefaultContactSec();if(!sec)return;
+  sec.roles[ri].fields.splice(fi,1);save();renderDefaultContactRoles();
+}
+function addDefaultContactField(ri){
+  const sec=getDefaultContactSec();if(!sec)return;
+  const label=document.getElementById('dcf-new-'+ri)?.value?.trim();if(!label)return;
+  sec.roles[ri].fields.push({id:'cf'+Date.now(),label});
+  document.getElementById('dcf-new-'+ri).value='';
+  save();renderDefaultContactRoles();
 }
 
 function renderGBFList(){

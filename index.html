@@ -2891,6 +2891,15 @@ function renderSettings(){
     </div>
     <div class="hint" style="margin-top:6px">匯出的 .json 檔案可以在其他裝置匯入還原所有資料</div>
   </div>
+  <div class="set-card">
+    <div class="set-title">📋 公版基本資訊欄位</div>
+    <div class="set-hint">設定新增專案時預設的基本資訊欄位。可自由刪除、改名、拖曳排序，修改後只影響之後新增的專案。</div>
+    <div id="gbf-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+    <div class="add-row">
+      <input type="text" id="new-gbf-label" placeholder="新增自訂欄位名稱">
+      <button class="btn btn-sm btn-p" onclick="addGlobalBF()">＋ 新增</button>
+    </div>
+  </div>
   <div class="set-card"><div class="set-title">🗂️ 全局工作階段</div><div class="set-hint">拖曳調整順序，每個專案可在「🗂️ 階段」分頁獨立調整，不影響全局設定</div><div id="drag-stages">`;
   G.stages.forEach((s,i)=>{
     h+=`<div class="drag-item" draggable="true" data-i="${i}"><span class="drag-handle">⠿</span><span class="color-dot" style="background:${s.color}"></span><span style="flex:1;font-size:13px;font-weight:700">${escH(s.name)}</span><span style="font-size:11px;color:var(--text3);padding:2px 8px;background:var(--bg2);border-radius:20px">${i+1}</span><button class="pill-rm" data-rm-stage="${s.id}">✕</button></div>`;
@@ -2936,6 +2945,73 @@ function renderSettings(){
     G.templates=G.templates.filter(t=>t.id!==btn.dataset.rmTpl);save();renderSettings();
   }));
   document.getElementById('btn-new-tpl').addEventListener('click',openNewTpl);
+  // Populate global basic fields list with drag-sort
+  renderGBFList();
+  setTimeout(bindGBFDrag,80);
+}
+
+function renderGBFList(){
+  const list=document.getElementById('gbf-list');if(!list)return;
+  const bfs=G.basicFieldDefs||[];
+  list.innerHTML=bfs.map((f,i)=>
+    '<div class="drag-item" draggable="true" data-gbfi="'+i+'" style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+    +'<span style="color:var(--text3);cursor:grab;font-size:16px">⠿</span>'
+    +'<input type="text" id="gbf-inp-'+i+'" value="'+escH(f.label)+'" style="flex:1;font-size:13px" placeholder="欄位名稱">'
+    +'<span style="font-size:10px;color:var(--text3);background:var(--bg2);padding:1px 6px;border-radius:10px;white-space:nowrap">'+f.type+'</span>'
+    +'<button class="btn btn-sm btn-danger" onclick="rmGlobalBF('+i+')">✕</button>'
+    +'</div>'
+  ).join('');
+}
+
+function saveGBFLabels(){
+  (G.basicFieldDefs||[]).forEach((f,i)=>{
+    const el=document.getElementById('gbf-inp-'+i);
+    if(el&&el.value.trim())f.label=el.value.trim();
+  });
+}
+
+function bindGBFDrag(){
+  let _drag=null;
+  document.querySelectorAll('#gbf-list .drag-item').forEach(el=>{
+    el.addEventListener('dragstart',e=>{
+      saveGBFLabels();
+      _drag=parseInt(el.dataset.gbfi);el.style.opacity='.4';
+      e.dataTransfer.effectAllowed='move';
+    });
+    el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#gbf-list .drag-item').forEach(x=>x.style.borderTop='');});
+    el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
+    el.addEventListener('dragleave',()=>{el.style.borderTop='';});
+    el.addEventListener('drop',e=>{
+      e.preventDefault();document.querySelectorAll('#gbf-list .drag-item').forEach(x=>x.style.borderTop='');
+      const to=parseInt(el.dataset.gbfi);
+      if(_drag===null||_drag===to)return;
+      const item=G.basicFieldDefs.splice(_drag,1)[0];
+      G.basicFieldDefs.splice(to,0,item);
+      _drag=null;
+      renderGBFList();setTimeout(bindGBFDrag,50);
+    });
+  });
+  // Auto-save labels on input change
+  document.querySelectorAll('#gbf-list input[type=text]').forEach(inp=>{
+    inp.addEventListener('change',()=>{saveGBFLabels();save();});
+  });
+}
+
+function addGlobalBF(){
+  const label=document.getElementById('new-gbf-label')?.value?.trim();
+  if(!label)return;
+  if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
+  saveGBFLabels();
+  G.basicFieldDefs.push({id:'bf-custom-'+Date.now(),label,type:'text',key:null});
+  document.getElementById('new-gbf-label').value='';
+  save();renderGBFList();setTimeout(bindGBFDrag,50);
+}
+function rmGlobalBF(i){
+  if(!G.basicFieldDefs)return;
+  saveGBFLabels();
+  if(!confirm('確定刪除「'+G.basicFieldDefs[i].label+'」？'))return;
+  G.basicFieldDefs.splice(i,1);
+  save();renderGBFList();setTimeout(bindGBFDrag,50);
 }
 
 function openNewTpl(){

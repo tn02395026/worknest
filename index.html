@@ -2484,12 +2484,39 @@ function addKVField(secId){
   const list=document.getElementById('kf-list');
   if(list){const i=sec.items.length-1;const div=document.createElement('div');div.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';div.innerHTML=`<input type="text" value="${escH(v)}" id="kf-lbl-${i}" style="flex:1"><button class="btn btn-sm btn-danger" onclick="rmKVField('${secId}',${i})">✕</button>`;list.appendChild(div);}
   document.getElementById('new-kf').value='';
+  // Also update the KV fields in the outer form
+  const container2=document.getElementById('kv-fields-'+secId);
+  if(container2){
+    const existingVals2={};
+    container2.querySelectorAll('input[id^="kv-"]').forEach(inp=>{
+      const parts=inp.id.split('-');const fid=parts.slice(2).join('-');existingVals2[fid]=inp.value;
+    });
+    container2.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals2[f.id]||'')+'"></div>').join('');
+  }
 }
 
 function rmKVField(secId,i){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec||!sec.items)return;
   sec.items.splice(i,1);
-  closeModal();openManageKVSection(secId);
+  // Re-render list in place without closing modal
+  const list=document.getElementById('kf-list');
+  if(list){
+    list.innerHTML=(sec.items||[]).map((f,idx)=>
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+      +'<input type="text" value="'+escH(f.label)+'" id="kf-lbl-'+idx+'" style="flex:1">'
+      +'<button class="btn btn-sm btn-danger" onclick="rmKVField(''+secId+'','+idx+')">✕</button>'
+      +'</div>'
+    ).join('');
+  }
+  // Also update the KV fields in the outer form immediately
+  const container=document.getElementById('kv-fields-'+secId);
+  if(container){
+    const existingVals={};
+    container.querySelectorAll('input[id^="kv-"]').forEach(inp=>{
+      const parts=inp.id.split('-');const fid=parts.slice(2).join('-');existingVals[fid]=inp.value;
+    });
+    container.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals[f.id]||'')+'"></div>').join('');
+  }
 }
 
 // Manage contact fields from form context

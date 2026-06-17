@@ -183,7 +183,6 @@
 /* ── Overdue ── */
 [data-dark="1"] .pcard.overdue{background:#251D1D;border-left-color:#E05050}
 [data-dark="1"] .overdue-badge{background:#E05050}
-.overdue-badge{background:var(--red);color:white;font-size:11px;font-weight:700;padding:5px 11px;border-radius:var(--rxs);margin:4px 0;display:inline-flex;align-items:center;gap:5px;cursor:pointer;animation:wiggle .6s ease-in-out infinite;width:100%}
 
 /* ── Closed / Lost ── */
 [data-dark="1"] .pcard.closed,[data-dark="1"] .pcard.lost{background:#1C1F23;opacity:.65}
@@ -578,13 +577,6 @@ const MASCOTS=['🐶','🐱','🦜','🐦','😸','🐕','🦚','🐾','🐰','�
 const ALARM_MASCOTS=['🐶','🐱','🐰','🐹','🦜','😸','🐾','🐕'];
 const COLORS=['#6B9E7A','#5B8DD9','#E8926A','#9B7FD4','#C9973A','#E05C5C','#5BAF82','#BA7517'];
 const TODAY=new Date().toISOString().split('T')[0];
-const getToday=()=>{
-  const now=new Date();
-  const y=now.getFullYear();
-  const m=String(now.getMonth()+1).padStart(2,'0');
-  const d=String(now.getDate()).padStart(2,'0');
-  return y+'-'+m+'-'+d;
-};
 const MONTHS=['','一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
 
 // ── DEFAULT DATA ─────────────────────────────────
@@ -747,17 +739,16 @@ const save=()=>{
     DOC_REF.set(JSON.parse(JSON.stringify(G))).catch(e=>console.warn('Firestore sync error:',e));
   }catch(e){console.warn('Firestore save error:',e);}
 };
+const getToday=()=>{const now=new Date();return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');};
 const isOD=(d,t)=>{
   if(!d||!d.trim())return false;
   const today=getToday();
-  if(d<today)return true;  // 日期已過
+  if(d<today)return true;
   if(d===today&&t&&t.trim()){
-    // 同一天，比較時間（用本地時間）
     const now=new Date();
-    const nowMinutes=now.getHours()*60+now.getMinutes();
+    const nowMin=now.getHours()*60+now.getMinutes();
     const parts=(t||'').split(':').map(Number);
-    const targetMinutes=(parts[0]||0)*60+(parts[1]||0);
-    return nowMinutes>targetMinutes;
+    return nowMin>(parts[0]||0)*60+(parts[1]||0);
   }
   return false;
 };
@@ -790,12 +781,8 @@ function renderRevenuePage(){
   const selYear=document.getElementById('rev-year')?.value||'';
   const selMonth=document.getElementById('rev-month')?.value||'';
   const selStatus=document.getElementById('rev-status')?.value||'';
-  // Get effective year/month: closed uses closedDate, active uses card year/month
-  const getProjDate=(p)=>{
-    if(p.status==='closed'&&p.closedDate){
-      const parts=p.closedDate.split('-');
-      return{year:parseInt(parts[0]),month:parseInt(parts[1])};
-    }
+  const getProjDate=p=>{
+    if(p.status==='closed'&&p.closedDate){const pt=p.closedDate.split('-');return{year:parseInt(pt[0]),month:parseInt(pt[1])};}
     return{year:p.year||new Date().getFullYear(),month:p.month||1};
   };
   let projs=G.projects.filter(p=>{
@@ -878,7 +865,7 @@ function renderRevenuePage(){
     projRows+='<div style="background:var(--white);border-radius:var(--rsm);border:1.5px solid var(--border);padding:10px 13px;margin-bottom:7px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center">'
       +'<div><div style="font-size:13px;font-weight:800;cursor:pointer;color:var(--text)" onclick="goPage(\'projects\');openProject('+p.id+')">'+escH(p.name)+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+getProjDate(p).year+'年'+getProjDate(p).month+'月'+(p.status==='closed'&&p.closedDate?' (結案'+p.closedDate+')':'')+'<span style="margin:0 4px">·</span>'+escH(stageById(p.stage).name)+' · '+(p.status==='closed'?'✅ 結案':p.status==='lost'?'❌ 流標':'🌱 進行中')+'</div></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+(p.year||'')+'年'+(p.month||'')+'月 · '+escH(stageById(p.stage).name)+' · '+(p.status==='closed'?'✅ 結案':p.status==='lost'?'❌ 流標':'🌱 進行中')+'</div></div>'
       +'<div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--sage)">NT$ '+amt.toLocaleString()+'</div>'
       +'<button class="btn btn-sm btn-ghost" style="font-size:11px;margin-top:3px" onclick="openCertPrices('+p.id+')">✏️ 分項報價</button></div>'
       +'</div>'+cpRows+'</div>';
@@ -1018,11 +1005,11 @@ function renderToday(){
   G.projects.filter(p=>p.status==='active').forEach(p=>{
     // Project followup today or overdue
     if(p.followup&&p.followup<=todayStr){
-      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:p.followup<todayStr||(p.followup===todayStr&&isOD(p.followup,p.followupTime)),pid:p.id});
+      items.push({type:'project',proj:p,label:'📋 專案追蹤',date:p.followup,time:p.followupTime||'',overdue:isOD(p.followup,p.followupTime),pid:p.id});
     }
     // Todos today or overdue
     (p.todos||[]).filter(t=>!t.done&&t.followup&&t.followup<=todayStr).forEach(t=>{
-      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:t.followup<todayStr||(t.followup===todayStr&&isOD(t.followup,t.followupTime)),pid:p.id,tid:t.id});
+      items.push({type:'todo',proj:p,label:t.label,date:t.followup,time:t.followupTime||'',overdue:isOD(t.followup,t.followupTime),pid:p.id,tid:t.id});
     });
   });
 
@@ -1161,10 +1148,7 @@ function renderAlerts(){
   document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
 }
 function renderYearFilterRevenue(){
-  const years=[...new Set(G.projects.map(p=>{
-    if(p.status==='closed'&&p.closedDate)return parseInt(p.closedDate.split('-')[0]);
-    return p.year||new Date().getFullYear();
-  }))].sort((a,b)=>b-a);
+  const years=[...new Set(G.projects.map(p=>(p.status==='closed'&&p.closedDate)?parseInt(p.closedDate.split('-')[0]):(p.year||new Date().getFullYear())))].sort((a,b)=>b-a);
   const sel=document.getElementById('rev-year');if(!sel)return;
   sel.innerHTML='<option value="">全部年份</option>'+years.map(y=>`<option value="${y}">${y}年</option>`).join('');
 }
@@ -1389,7 +1373,7 @@ function paneInfo(p,secs){
   const r=(l,v,fn)=>v?`<div><div class="info-label">${escH(l)}</div><div class="info-value" onclick="${fn}">${escH(v)}</div></div>`:'';
   let h=`<div class="d-pane active"><div class="info-grid">
     ${r('📅 接洽日期',p.contactDate||'',`inlineEdit(${p.id},'contactDate','${escH(p.contactDate||'')}','接洽日期')`)}
-    ${r('💰 報價金額',p.price?'NT$ '+p.price:'',`inlineEdit(${p.id},'price','${escH(p.price||'')}','報價金額')`)}
+    ${(()=>{const _t=(p.certPrices||[]).reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);const _d=_t>0?_t.toLocaleString():(p.price||'');return _d?r('💰 報價金額','NT$ '+_d,'inlineEdit('+p.id+',\'price\',\''+escH(p.price||'')+'\',\'報價金額\')'):''})()','報價金額')`)}
     ${r('👥 案件來源',p.source||'',`inlineEdit(${p.id},'source','${escH(p.source||'')}','案件來源')`)}
     ${p.followup?`<div><div class="info-label">🔔 下次追蹤</div><div style="display:flex;align-items:center;gap:6px"><div class="info-value" onclick="inlineEdit(${p.id},'followup','${p.followup||''}','下次追蹤')">${p.followup}${p.followupTime?' '+p.followupTime:''}</div><button class="ibtn" style="color:var(--red);font-size:11px" onclick="clearFollowup(${p.id})">✕ 清除</button></div></div>`:''}
     ${p.status==='closed'&&p.closedDate?r('✅ 結案日期',p.closedDate,''):''}
@@ -1469,67 +1453,30 @@ function paneContacts(p,secs){
 
 function openManageContactFields(pid){
   const p=G.projects.find(x=>x.id===pid);if(!p)return;
-  // Ensure projSections exists so we edit the real stored version
-  if(!p.projSections)p.projSections=JSON.parse(JSON.stringify(getEffSecs(p)));
-  let sec=p.projSections.find(s=>s.id==='sec-contacts');if(!sec)return;
-  window._editContactSec=sec;window._editContactPid=pid;
-
-  const buildRolesH=()=>(sec.roles||[]).map((r,ri)=>
-    '<div class="drag-item" draggable="true" data-ri="'+ri+'" style="margin-bottom:10px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">'
-    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
-    +'<span style="cursor:grab;color:var(--text3);font-size:16px">⠿</span>'
-    +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
-    +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（點擊刪除）：</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:4px" id="cf-list-'+ri+'">'+r.fields.map((f,fi)=>'<span class="tag-pill" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab">'+escH(f.label)+' <span onclick="rmContactField('+ri+','+fi+')" style="cursor:pointer">✕</span></span>').join('')+'</div>'
-    +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱（拖曳⠿可排序）"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
-    +'</div>').join('');
-
-  const rebuildList=()=>{
-    const list=document.getElementById('cr-list');
-    if(!list)return;
-    list.innerHTML=buildRolesH();
-    bindRoleDrag();
-  };
-
-  const bindRoleDrag=()=>{
-    let dragFrom=null;
-    document.querySelectorAll('#cr-list .drag-item').forEach(el=>{
-      el.addEventListener('dragstart',e=>{
-        // Save current labels first
-        (sec.roles||[]).forEach((r,ri)=>{const inp=document.getElementById('cr-lbl-'+ri);if(inp)r.label=inp.value.trim()||r.label;});
-        dragFrom=parseInt(el.dataset.ri);el.style.opacity='.4';
-        e.dataTransfer.effectAllowed='move';
-      });
-      el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#cr-list .drag-item').forEach(x=>x.style.borderTop='');});
-      el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
-      el.addEventListener('dragleave',()=>{el.style.borderTop='';});
-      el.addEventListener('drop',e=>{
-        e.preventDefault();
-        document.querySelectorAll('#cr-list .drag-item').forEach(x=>x.style.borderTop='');
-        const to=parseInt(el.dataset.ri);
-        if(dragFrom===null||dragFrom===to)return;
-        const item=sec.roles.splice(dragFrom,1)[0];
-        sec.roles.splice(to,0,item);
-        dragFrom=null;
-        rebuildList();
-      });
-    });
-  };
-
-  openModal('管理聯絡人欄位',
-    '<div id="cr-list">'+buildRolesH()+'</div>'
-    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增聯絡人角色，例：業主代理人"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
+  const secs=getEffSecs(p);
+  const sec=secs.find(s=>s.id==='sec-contacts');if(!sec)return;
+  let rolesH=(sec.roles||[]).map((r,ri)=>`
+    <div style="margin-bottom:12px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input type="text" value="${escH(r.label)}" id="cr-lbl-${ri}" style="flex:1;font-weight:700">
+        <button class="btn btn-sm btn-danger" onclick="rmContactRole(${ri})">✕ 移除</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（點擊刪除）：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px" id="cf-list-${ri}">${r.fields.map((f,fi)=>`<span class="tag-pill" onclick="rmContactField(${ri},${fi})">${escH(f.label)} ✕</span>`).join('')}</div>
+      <div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-${ri}" placeholder="新增欄位名稱"><button class="btn btn-sm" onclick="addContactField(${ri})">＋</button></div>
+    </div>`).join('');
+  openModal('管理聯絡人欄位',`
+    <div id="cr-list">${rolesH}</div>
+    <div class="add-row"><input type="text" id="cr-new-label" placeholder="新增聯絡人角色，例：業主代理人"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>`,
   ()=>{
-    // Save labels
+    // Save role labels
     (sec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el)r.label=el.value.trim()||r.label;});
-    // sec is already directly from p.projSections, so changes are live
+    // Apply to project's projSections
+    if(!p.projSections)p.projSections=JSON.parse(JSON.stringify(secs));
+    else{const s2=p.projSections.find(s=>s.id==='sec-contacts');if(s2)s2.roles=sec.roles;}
     save();closeModal();renderDetail();
   });
-  setTimeout(()=>{
-    bindRoleDrag();
-    (sec.roles||[]).forEach((_,ri)=>rebuildFieldList(ri));
-  },80);
+  window._editContactSec=sec;window._editContactPid=pid;
 }
 
 window._editContactSec=null;window._editContactPid=null;
@@ -1538,7 +1485,7 @@ function addContactRole(){
   if(!window._editContactSec.roles)window._editContactSec.roles=[];
   const ri=window._editContactSec.roles.length;
   window._editContactSec.roles.push({id:'cr'+Date.now(),label,fields:[{id:'cf1',label:'姓名'},{id:'cf2',label:'電話'},{id:'cf3',label:'信箱'}]});
-  const p=G.projects.find(x=>x.id===window._editContactPid);if(p&&!p.projSections)p.projSections=JSON.parse(JSON.stringify(getEffSecs(p)));closeModal();openManageContactFields(window._editContactPid);
+  closeModal();openManageContactFields(window._editContactPid);
 }
 function rmContactRole(ri){
   if(!confirm('確定移除此聯絡人角色？'))return;
@@ -1547,33 +1494,9 @@ function rmContactRole(ri){
 }
 function addContactField(ri){
   const v=document.getElementById('cf-new-'+ri)?.value?.trim();if(!v)return;
-  window._editContactSec.roles[ri].fields.push({id:'cf'+Date.now(),label:v});
-  document.getElementById('cf-new-'+ri).value='';
-  rebuildFieldList(ri);
-}
-
-function rebuildFieldList(ri){
-  const list=document.getElementById('cf-list-'+ri);if(!list)return;
-  const fields=window._editContactSec.roles[ri].fields||[];
-  list.innerHTML=fields.map((f,fi)=>
-    '<span class="tag-pill" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab">'
-    +escH(f.label)+' <span onclick="rmContactField('+ri+','+fi+')" style="cursor:pointer;margin-left:3px">✕</span></span>'
-  ).join('');
-  let dragFi=null;
-  list.querySelectorAll('.tag-pill[draggable]').forEach(el=>{
-    el.addEventListener('dragstart',e=>{dragFi=parseInt(el.dataset.fi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
-    el.addEventListener('dragend',()=>{el.style.opacity='1';});
-    el.addEventListener('dragover',e=>{e.preventDefault();el.style.outline='2px solid var(--sage)';});
-    el.addEventListener('dragleave',()=>{el.style.outline='';});
-    el.addEventListener('drop',e=>{
-      e.preventDefault();el.style.outline='';
-      const toFi=parseInt(el.dataset.fi);
-      if(dragFi===null||dragFi===toFi)return;
-      const fs=window._editContactSec.roles[ri].fields;
-      const item=fs.splice(dragFi,1)[0];fs.splice(toFi,0,item);
-      dragFi=null;rebuildFieldList(ri);
-    });
-  });
+  const fid='cf'+Date.now();
+  window._editContactSec.roles[ri].fields.push({id:fid,label:v});
+  closeModal();openManageContactFields(window._editContactPid);
 }
 function rmContactField(ri,fi){
   window._editContactSec.roles[ri].fields.splice(fi,1);
@@ -1843,7 +1766,7 @@ function getRemindVals(){
   const [n,u]=sel.value.split('|');
   return{n:n||'',u:u||'min'};
 }
-
+;}
 
 // ── TODO MODAL ────────────────────────────────────
 function openTodoModal(pid,editIdx,secs){
@@ -2484,38 +2407,23 @@ function addKVField(secId){
   const list=document.getElementById('kf-list');
   if(list){const i=sec.items.length-1;const div=document.createElement('div');div.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:6px';div.innerHTML=`<input type="text" value="${escH(v)}" id="kf-lbl-${i}" style="flex:1"><button class="btn btn-sm btn-danger" onclick="rmKVField('${secId}',${i})">✕</button>`;list.appendChild(div);}
   document.getElementById('new-kf').value='';
-  // Also update the KV fields in the outer form
-  const container2=document.getElementById('kv-fields-'+secId);
-  if(container2){
-    const existingVals2={};
-    container2.querySelectorAll('input[id^="kv-"]').forEach(inp=>{
-      const parts=inp.id.split('-');const fid=parts.slice(2).join('-');existingVals2[fid]=inp.value;
-    });
-    container2.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals2[f.id]||'')+'"></div>').join('');
-  }
 }
 
 function rmKVField(secId,i){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec||!sec.items)return;
   sec.items.splice(i,1);
-  // Re-render list in place without closing modal
   const list=document.getElementById('kf-list');
   if(list){
     list.innerHTML=(sec.items||[]).map((f,idx)=>
       '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
       +'<input type="text" value="'+escH(f.label)+'" id="kf-lbl-'+idx+'" style="flex:1">'
       +'<button class="btn btn-sm btn-danger" onclick="rmKVField(''+secId+'','+idx+')">✕</button>'
-      +'</div>'
-    ).join('');
+      +'</div>').join('');
   }
-  // Also update the KV fields in the outer form immediately
   const container=document.getElementById('kv-fields-'+secId);
   if(container){
-    const existingVals={};
-    container.querySelectorAll('input[id^="kv-"]').forEach(inp=>{
-      const parts=inp.id.split('-');const fid=parts.slice(2).join('-');existingVals[fid]=inp.value;
-    });
-    container.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals[f.id]||'')+'"></div>').join('');
+    const vals={};container.querySelectorAll('input[id^="kv-"]').forEach(inp=>{const p=inp.id.split('-');vals[p.slice(2).join('-')]=inp.value;});
+    container.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(vals[f.id]||'')+'"></div>').join('');
   }
 }
 
@@ -2523,31 +2431,23 @@ function rmKVField(secId,i){
 function openManageContactFieldsFromForm(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
   window._editContactSec=sec;window._editContactPid=null;
-
-  const buildRolesH=()=>(sec.roles||[]).map((r,ri)=>
-    '<div class="drag-item" draggable="true" data-ri="'+ri+'" style="margin-bottom:10px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">'
-    +'<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">'
-    +'<span style="cursor:grab;color:var(--text3);font-size:16px">⠿</span>'
-    +'<input type="text" value="'+escH(r.label)+'" id="cr-lbl-'+ri+'" style="flex:1;font-weight:700">'
-    +'<button class="btn btn-sm btn-danger" onclick="rmContactRole('+ri+')">✕ 移除</button></div>'
-    +'<div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位（上下拖曳排序）：</div>'
-    +'<div id="cf-list-'+ri+'" style="display:flex;flex-direction:column;gap:4px">'+r.fields.map((f,fi)=>'<div class="drag-item" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="cursor:grab;display:flex;align-items:center;gap:6px;padding:4px 8px"><span style="color:var(--text3)">⠿</span><span style="flex:1;font-size:13px">'+escH(f.label)+'</span><button class="btn btn-sm btn-danger" onclick="rmContactField('+ri+','+fi+')" style="padding:2px 7px;font-size:11px">✕</button></div>').join('')+'</div>'
-    +'<div class="add-row" style="margin-top:6px"><input type="text" id="cf-new-'+ri+'" placeholder="新增欄位名稱"><button class="btn btn-sm" onclick="addContactField('+ri+')">＋</button></div>'
-    +'</div>').join('');
-
-  const rebind=()=>{
-    bindRoleDrag();
-    (sec.roles||[]).forEach((_,ri)=>rebuildFieldList(ri));
-  };
-
-  openModal('管理聯絡人欄位',
-    '<div id="cr-list">'+buildRolesH()+'</div>'
-    +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增聯絡人角色，例：業主代理人"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
+  let rolesH=(sec.roles||[]).map((r,ri)=>`
+    <div style="margin-bottom:12px;padding:10px;background:var(--sage4);border-radius:var(--rsm);border:1.5px solid var(--border)">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
+        <input type="text" value="${escH(r.label)}" id="cr-lbl-${ri}" style="flex:1;font-weight:700">
+        <button class="btn btn-sm btn-danger" onclick="rmContactRoleForm(${ri})">✕ 移除</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:5px">欄位：</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${r.fields.map((f,fi)=>`<span class="tag-pill" onclick="rmContactFieldForm(${ri},${fi})">${escH(f.label)} ✕</span>`).join('')}</div>
+      <div class="add-row" style="margin-top:5px"><input type="text" id="cf-new-${ri}" placeholder="新增欄位"><button class="btn btn-sm" onclick="addContactFieldForm(${ri})">＋</button></div>
+    </div>`).join('');
+  openModal(`管理「${escH(sec.label)}」`,`
+    <div id="cr-list">${rolesH}</div>
+    <div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱"><button class="btn btn-sm btn-p" onclick="addContactRoleForm()">＋ 新增角色</button></div>`,
   ()=>{
     (sec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el)r.label=el.value.trim()||r.label;});
     closeModal();
   });
-  setTimeout(rebind,80);
 }
 function addContactRoleForm(){
   const label=document.getElementById('cr-new-label')?.value?.trim();if(!label)return;
@@ -2920,8 +2820,8 @@ function renderSettings(){
   </div>
   <div class="set-card">
     <div class="set-title">📋 公版基本資訊欄位</div>
-    <div class="set-hint">設定新增專案時預設的基本資訊欄位。可自由刪除、改名、拖曳排序，修改後只影響之後新增的專案。</div>
-    <div id="gbf-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+    <div class="set-hint">設定新增專案時預設的基本資訊欄位。可刪除、改名、拖曳排序，修改後只影響之後新增的專案。</div>
+    <div id="gbf-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
     <div class="add-row">
       <input type="text" id="new-gbf-label" placeholder="新增自訂欄位名稱">
       <button class="btn btn-sm btn-p" onclick="addGlobalBF()">＋ 新增</button>
@@ -2972,61 +2872,32 @@ function renderSettings(){
     G.templates=G.templates.filter(t=>t.id!==btn.dataset.rmTpl);save();renderSettings();
   }));
   document.getElementById('btn-new-tpl').addEventListener('click',openNewTpl);
-  // Populate global basic fields list with drag-sort
-  renderGBFList();
-  setTimeout(bindGBFDrag,80);
+  renderGBFList();setTimeout(bindGBFDrag,80);
 }
 
 function renderGBFList(){
   const list=document.getElementById('gbf-list');if(!list)return;
   const bfs=G.basicFieldDefs||[];
-  list.innerHTML=bfs.map((f,i)=>
-    '<div class="drag-item" draggable="true" data-gbfi="'+i+'" style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
-    +'<span style="color:var(--text3);cursor:grab;font-size:16px">⠿</span>'
-    +'<input type="text" id="gbf-inp-'+i+'" value="'+escH(f.label)+'" style="flex:1;font-size:13px" placeholder="欄位名稱">'
-    +'<span style="font-size:10px;color:var(--text3);background:var(--bg2);padding:1px 6px;border-radius:10px;white-space:nowrap">'+f.type+'</span>'
-    +'<button class="btn btn-sm btn-danger" onclick="rmGlobalBF('+i+')">✕</button>'
-    +'</div>'
-  ).join('');
+  list.innerHTML=bfs.map((f,i)=>'<div class="drag-item" draggable="true" data-gbfi="'+i+'" style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span style="color:var(--text3);cursor:grab;font-size:16px">⠿</span><input type="text" id="gbf-inp-'+i+'" value="'+escH(f.label)+'" style="flex:1;font-size:13px" onchange="saveGBFLabels()"><span style="font-size:10px;color:var(--text3);background:var(--bg2);padding:1px 6px;border-radius:10px">'+f.type+'</span><button class="btn btn-sm btn-danger" onclick="rmGlobalBF('+i+')">✕</button></div>').join('');
 }
-
-function saveGBFLabels(){
-  (G.basicFieldDefs||[]).forEach((f,i)=>{
-    const el=document.getElementById('gbf-inp-'+i);
-    if(el&&el.value.trim())f.label=el.value.trim();
-  });
-}
-
+function saveGBFLabels(){(G.basicFieldDefs||[]).forEach((f,i)=>{const el=document.getElementById('gbf-inp-'+i);if(el&&el.value.trim())f.label=el.value.trim();});save();}
 function bindGBFDrag(){
-  let _drag=null;
+  let _d=null;
   document.querySelectorAll('#gbf-list .drag-item').forEach(el=>{
-    el.addEventListener('dragstart',e=>{
-      saveGBFLabels();
-      _drag=parseInt(el.dataset.gbfi);el.style.opacity='.4';
-      e.dataTransfer.effectAllowed='move';
-    });
+    el.addEventListener('dragstart',e=>{saveGBFLabels();_d=parseInt(el.dataset.gbfi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';});
     el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#gbf-list .drag-item').forEach(x=>x.style.borderTop='');});
     el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
     el.addEventListener('dragleave',()=>{el.style.borderTop='';});
     el.addEventListener('drop',e=>{
       e.preventDefault();document.querySelectorAll('#gbf-list .drag-item').forEach(x=>x.style.borderTop='');
-      const to=parseInt(el.dataset.gbfi);
-      if(_drag===null||_drag===to)return;
-      const item=G.basicFieldDefs.splice(_drag,1)[0];
-      G.basicFieldDefs.splice(to,0,item);
-      _drag=null;
-      renderGBFList();setTimeout(bindGBFDrag,50);
+      const to=parseInt(el.dataset.gbfi);if(_d===null||_d===to)return;
+      const item=G.basicFieldDefs.splice(_d,1)[0];G.basicFieldDefs.splice(to,0,item);
+      _d=null;save();renderGBFList();setTimeout(bindGBFDrag,50);
     });
   });
-  // Auto-save labels on input change
-  document.querySelectorAll('#gbf-list input[type=text]').forEach(inp=>{
-    inp.addEventListener('change',()=>{saveGBFLabels();save();});
-  });
 }
-
 function addGlobalBF(){
-  const label=document.getElementById('new-gbf-label')?.value?.trim();
-  if(!label)return;
+  const label=document.getElementById('new-gbf-label')?.value?.trim();if(!label)return;
   if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
   saveGBFLabels();
   G.basicFieldDefs.push({id:'bf-custom-'+Date.now(),label,type:'text',key:null});
@@ -3305,23 +3176,7 @@ function startApp(){
   renderYearFilter();renderTopStats();renderAlerts();renderFilterBar();renderProjects();scheduleAlarmCheck();initDarkMode();
 } // end startApp
 
-// Wait for Firebase to be ready before starting
-function tryInit(retries){
-  if(typeof firebase!=='undefined'&&typeof DOC_REF!=='undefined'){
-    initApp();
-  } else if(retries>0){
-    setTimeout(()=>tryInit(retries-1),200);
-  } else {
-    // Firebase never loaded, use localStorage only
-    startApp();
-  }
-}
-document.addEventListener('DOMContentLoaded',()=>{
-  if(localStorage.getItem('wn_dark')==='1'){
-    document.documentElement.setAttribute('data-dark','1');
-  }
-  tryInit(20);
-});
+document.addEventListener('DOMContentLoaded',()=>initApp());
 </script>
 
 

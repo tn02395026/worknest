@@ -1478,7 +1478,16 @@ function openContactFieldsModal(sec, onSave){
   const initHTML='<div id="cr-list"></div>'
     +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>';
   openModal('管理聯絡人欄位', initHTML, ()=>{
-    (sec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el&&el.value.trim())r.label=el.value.trim();});
+    // Save role labels
+    (sec.roles||[]).forEach((r,ri)=>{
+      const el=document.getElementById('cr-lbl-'+ri);
+      if(el&&el.value.trim())r.label=el.value.trim();
+      // Save field labels
+      (r.fields||[]).forEach((f,fi)=>{
+        const finp=document.getElementById('cf-inp-'+ri+'-'+fi);
+        if(finp&&finp.value.trim())f.label=finp.value.trim();
+      });
+    });
     onSave();
   });
   setTimeout(()=>{rebuildRolesList();}, 80);
@@ -1561,7 +1570,7 @@ function rebuildFieldList(ri){
   list.innerHTML=fields.map((f,fi)=>
     '<div class="drag-item" draggable="true" data-fi="'+fi+'" data-ri="'+ri+'" style="display:flex;align-items:center;gap:6px;padding:4px 8px">'
     +'<span style="color:var(--text3)">⠿</span>'
-    +'<span style="flex:1;font-size:13px">'+escH(f.label)+'</span>'
+    +'<input type="text" id="cf-inp-'+ri+'-'+fi+'" value="'+escH(f.label)+'" style="flex:1;font-size:13px;border:none;background:transparent" onchange="saveCFLabel('+ri+','+fi+',this.value)">'
     +'<button class="btn btn-sm btn-danger" onclick="rmContactField('+ri+','+fi+')" style="padding:2px 7px;font-size:11px">✕</button>'
     +'</div>').join('');
   let dfi=null;
@@ -1588,6 +1597,12 @@ function addContactField(ri){
   if(inp)inp.value='';
   rebuildFieldList(ri);
 }
+function saveCFLabel(ri,fi,val){
+  if(!val.trim())return;
+  const roles=window._editContactSec.roles||[];
+  if(roles[ri]&&roles[ri].fields[fi])roles[ri].fields[fi].label=val.trim();
+}
+
 function rmContactField(ri,fi){
   window._editContactSec.roles[ri].fields.splice(fi,1);
   rebuildFieldList(ri);
@@ -2526,17 +2541,24 @@ function closeContactPanel(){
 function openManageContactFieldsFromForm(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
   window._editContactSec=sec;window._editContactPid=null;
-  // Store current modal state to restore after
-  const prevBody=document.querySelector('.modal-body')?.innerHTML;
-  const prevTitle=document.querySelector('.modal-hdr span')?.textContent;
-  const prevOK=document.getElementById('modal-ok');
-  const prevOKClone=prevOK?prevOK.cloneNode(true):null;
   openModal('管理聯絡人欄位',
     '<div id="cr-list"></div>'
     +'<div class="add-row"><input type="text" id="cr-new-label" placeholder="新增角色名稱（例：業主）"><button class="btn btn-sm btn-p" onclick="addContactRole()">＋ 新增角色</button></div>',
     ()=>{
-      // Save labels then restore edit form
-      (window._editContactSec.roles||[]).forEach((r,ri)=>{const el=document.getElementById('cr-lbl-'+ri);if(el&&el.value.trim())r.label=el.value.trim();});
+      // Save all labels
+      (window._editContactSec.roles||[]).forEach((r,ri)=>{
+        const el=document.getElementById('cr-lbl-'+ri);
+        if(el&&el.value.trim())r.label=el.value.trim();
+        (r.fields||[]).forEach((f,fi)=>{
+          const finp=document.getElementById('cf-inp-'+ri+'-'+fi);
+          if(finp&&finp.value.trim())f.label=finp.value.trim();
+        });
+      });
+      // Save to current project immediately (don't need outer form save)
+      if(window._editKVPid){
+        const proj=G.projects.find(x=>x.id===window._editKVPid);
+        if(proj){proj.projSections=JSON.parse(JSON.stringify(_editSecs));save();}
+      }
       closeModal();
     });
   setTimeout(()=>{rebuildRolesList();},80);

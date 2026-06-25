@@ -2477,15 +2477,39 @@ function addFormSection(type){
 // Manage KV (keyvalue) section fields
 function openManageKVSection(secId){
   const sec=_editSecs.find(s=>s.id===secId);if(!sec)return;
-  let rows=(sec.items||[]).map((f,i)=>`
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <input type="text" value="${escH(f.label)}" id="kf-lbl-${i}" style="flex:1">
-      <button class="btn btn-sm btn-danger" onclick="rmKVField('${secId}',${i})">✕</button>
-    </div>`).join('');
-  openModal(`管理「${escH(sec.label)}」欄位`,`
-    <div id="kf-list">${rows}</div>
-    <div class="add-row"><input type="text" id="new-kf" placeholder="新欄位名稱"><button class="btn btn-sm btn-p" onclick="addKVField('${secId}')">＋ 新增</button></div>`,
-  ()=>{
+  window._editKVSecId=secId;
+
+  const buildRows=()=>(sec.items||[]).map((f,i)=>
+    '<div class="drag-item" draggable="true" data-kfi="'+i+'" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'
+    +'<span style="color:var(--text3);cursor:grab;font-size:16px">⠿</span>'
+    +'<input type="text" value="'+escH(f.label)+'" id="kf-lbl-'+i+'" style="flex:1">'
+    +'<button class="btn btn-sm btn-danger" onclick="rmKVField(window._editKVSecId,'+i+')">✕</button>'
+    +'</div>').join('');
+
+  const bindKVDrag=()=>{
+    let _d=null;
+    document.querySelectorAll('#kf-list .drag-item').forEach(el=>{
+      el.addEventListener('dragstart',e=>{
+        // save current labels before reorder
+        (sec.items||[]).forEach((f,i)=>{const inp=document.getElementById('kf-lbl-'+i);if(inp&&inp.value.trim())f.label=inp.value.trim();});
+        _d=parseInt(el.dataset.kfi);el.style.opacity='.4';e.dataTransfer.effectAllowed='move';
+      });
+      el.addEventListener('dragend',()=>{el.style.opacity='1';document.querySelectorAll('#kf-list .drag-item').forEach(x=>x.style.borderTop='');});
+      el.addEventListener('dragover',e=>{e.preventDefault();el.style.borderTop='2px solid var(--sage)';});
+      el.addEventListener('dragleave',()=>{el.style.borderTop='';});
+      el.addEventListener('drop',e=>{
+        e.preventDefault();document.querySelectorAll('#kf-list .drag-item').forEach(x=>x.style.borderTop='');
+        const to=parseInt(el.dataset.kfi);
+        if(_d===null||_d===to||isNaN(to))return;
+        const item=sec.items.splice(_d,1)[0];sec.items.splice(to,0,item);
+        _d=null;
+        document.getElementById('kf-list').innerHTML=buildRows();
+        bindKVDrag();
+      });
+    });
+  };
+
+  const saveAndRefresh=()=>{
     (sec.items||[]).forEach((f,i)=>{const el=document.getElementById('kf-lbl-'+i);if(el&&el.value.trim())f.label=el.value.trim();});
     closeModal();
     const container=document.getElementById('kv-fields-'+secId);
@@ -2496,13 +2520,17 @@ function openManageKVSection(secId){
       });
       container.innerHTML=(sec.items||[]).map(f=>'<div class="form-row"><label class="form-label">'+escH(f.label)+'</label><input type="text" id="kv-'+secId+'-'+f.id+'" value="'+escH(existingVals[f.id]||'')+'"></div>').join('');
     }
-    // Save to project immediately
     if(window._editKVPid){
       const proj=G.projects.find(x=>x.id===window._editKVPid);
       if(proj){proj.projSections=JSON.parse(JSON.stringify(_editSecs));save();}
     }
-  });
-  window._editKVSecId=secId;
+  };
+
+  openModal('管理「'+escH(sec.label)+'」欄位',
+    '<div id="kf-list">'+buildRows()+'</div>'
+    +'<div class="add-row"><input type="text" id="new-kf" placeholder="新欄位名稱"><button class="btn btn-sm btn-p" onclick="addKVField(window._editKVSecId)">＋ 新增</button></div>',
+    saveAndRefresh);
+  setTimeout(bindKVDrag,80);
 }
 window._editKVSecId=null;
 

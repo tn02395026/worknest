@@ -722,7 +722,12 @@ let G=JSON.parse(localStorage.getItem('zz5_data')||JSON.stringify(SEED));
 if(!G.tabOrder)G.tabOrder=['info','contacts','stages','checklist','todos','logs','notes'];
 if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
 // Ensure all projects have required fields
-if(!G.revenueBaselines)G.revenueBaselines=Array(12).fill(0);
+if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
+  // Migrate old flat array to per-year object
+  const old=Array.isArray(G.revenueBaselines)?G.revenueBaselines:null;
+  G.revenueBaselines={};
+  if(old){const y=new Date().getFullYear();G.revenueBaselines[y]=old;}
+}
 G.projects.forEach(p=>{
   if(!p.sectionData)p.sectionData={};
   if(!p.projBasicFields)p.projBasicFields=null;
@@ -807,8 +812,13 @@ function renderRevenuePage(){
     const ps=G.projects.filter(p=>(p.year||new Date().getFullYear())===chartYear&&(p.month||1)===m);
     return{month:m,amount:ps.reduce((s,p)=>s+getAmt(p),0),count:ps.length};
   });
-  if(!G.revenueBaselines)G.revenueBaselines=Array(12).fill(0);
-  const bls=G.revenueBaselines;
+  if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
+  // Migrate old flat array to per-year object
+  const old=Array.isArray(G.revenueBaselines)?G.revenueBaselines:null;
+  G.revenueBaselines={};
+  if(old){const y=new Date().getFullYear();G.revenueBaselines[y]=old;}
+}
+  const bls=(G.revenueBaselines[chartYear]||Array(12).fill(0));
   const maxVal=Math.max(...monthlyData.map(d=>d.amount),...bls,100000);
   // Build SVG chart
   const W=560,H=200,pl=65,pr=15,pt=20,pb=40;
@@ -885,7 +895,7 @@ function renderRevenuePage(){
     +'<div class="analytics-title" style="margin-bottom:0">📈 月度報價趨勢（'+chartYear+'年）</div>'
     +'<button class="btn btn-sm" onclick="openBaselineEditor()">⚙️ 設定月目標</button></div>'
     +legend+svg+'</div>'
-    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析</div>'+buildCertAnalysis(G.projects.filter(p=>{const pd=getProjDate(p);if(selStatus&&p.status!==selStatus)return false;if(selYear&&String(pd.year)!==selYear)return false;return true;}))+'</div>'
+    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析</div>'+buildCertAnalysis(G.projects.filter(p=>{const pd=getProjDate(p);if(selStatus&&p.status!==selStatus)return false;if(selYear&&String(pd.year)!==selYear)return false;if(selMonth&&String(pd.month)!==selMonth)return false;return true;}))+'</div>'
     +'<div class="analytics-card"><div class="analytics-title">💰 專案報價明細</div>'+projRows+'</div>';
 }
 
@@ -965,21 +975,41 @@ function buildCertAnalysis(projs){
 }
 
 function openBaselineEditor(){
-  if(!G.revenueBaselines)G.revenueBaselines=Array(12).fill(0);
-  const bls=G.revenueBaselines;
-  let rows='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px">';
-  bls.forEach((v,i)=>{
-    rows+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'
-      +'<label class="form-label" style="width:36px;flex-shrink:0">'+(i+1)+'月</label>'
-      +'<input type="text" id="bl-'+i+'" value="'+(v>0?v.toLocaleString():'')+'" placeholder="目標金額">'
-      +'</div>';
-  });
-  rows+='</div>';
-  openModal('設定每月目標金額（NT$）','<div class="hint" style="margin-bottom:10px">設定後顯示為折線圖紅色基準線，與實際報價做比較。</div>'+rows,
-  ()=>{
-    bls.forEach((_,i)=>{G.revenueBaselines[i]=parseFloat(String(document.getElementById('bl-'+i)?.value||'0').replace(/,/g,''))||0;});
+  if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
+    const old=Array.isArray(G.revenueBaselines)?G.revenueBaselines:null;
+    G.revenueBaselines={};
+    if(old){G.revenueBaselines[new Date().getFullYear()]=old;}
+  }
+  const curYear=parseInt(document.getElementById('rev-year')?.value)||new Date().getFullYear();
+  const yearSet=new Set([...Object.keys(G.revenueBaselines).map(Number),curYear-1,curYear,curYear+1,curYear+2]);
+  const years=[...yearSet].sort((a,b)=>a-b);
+  window._blYear=curYear;
+  const buildRows=(yr)=>{
+    const bls2=G.revenueBaselines[yr]||Array(12).fill(0);
+    return Array(12).fill(0).map((_,i)=>'<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><label class="form-label" style="width:36px;flex-shrink:0">'+(i+1)+'月</label><input type="text" id="bl-'+i+'" value="'+(bls2[i]>0?bls2[i].toLocaleString():'')+'" placeholder="目標金額"></div>').join('');
+  };
+  const body='<div class="hint" style="margin-bottom:10px">每個年度可設定不同月目標，折線圖依選取年度顯示對應基準線。</div>'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
+    +'<label class="form-label" style="margin:0;white-space:nowrap">年度：</label>'
+    +'<select id="bl-year-sel" onchange="switchBlYear(this.value)" style="width:100px">'
+    +years.map(y=>'<option value="'+y+'"'+(y===curYear?' selected':'')+'>'+y+'年</option>').join('')
+    +'</select></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px" id="bl-rows">'+buildRows(curYear)+'</div>';
+  openModal('設定月目標金額（NT$）', body, ()=>{
+    saveBlYear(window._blYear);
     save();closeModal();renderRevenuePage();
   });
+}
+function saveBlYear(yr){
+  if(!G.revenueBaselines)G.revenueBaselines={};
+  G.revenueBaselines[yr]=Array(12).fill(0).map((_,i)=>parseFloat(String(document.getElementById('bl-'+i)?.value||'0').replace(/,/g,''))||0);
+}
+function switchBlYear(newYr){
+  saveBlYear(window._blYear);
+  window._blYear=parseInt(newYr);
+  if(!G.revenueBaselines[window._blYear])G.revenueBaselines[window._blYear]=Array(12).fill(0);
+  const bls2=G.revenueBaselines[window._blYear];
+  Array(12).fill(0).forEach((_,i)=>{const el=document.getElementById('bl-'+i);if(el)el.value=bls2[i]>0?bls2[i].toLocaleString():'';});
 }
 
 function openCertPrices(pid){

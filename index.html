@@ -885,7 +885,83 @@ function renderRevenuePage(){
     +'<div class="analytics-title" style="margin-bottom:0">📈 月度報價趨勢（'+chartYear+'年）</div>'
     +'<button class="btn btn-sm" onclick="openBaselineEditor()">⚙️ 設定月目標</button></div>'
     +legend+svg+'</div>'
+    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析</div>'+buildCertAnalysis(G.projects.filter(p=>{const pd=getProjDate(p);if(selStatus&&p.status!==selStatus)return false;if(selYear&&String(pd.year)!==selYear)return false;return true;}))+'</div>'
     +'<div class="analytics-card"><div class="analytics-title">💰 專案報價明細</div>'+projRows+'</div>';
+}
+
+function buildCertAnalysis(projs){
+  const certTypes=["IB", "EEWH", "BERS", "LEED", "WELL", "LEBR", "HVAC", "CxA", "無障礙", "其他"];
+  const colorMap={"IB": "#5B8DD9", "EEWH": "#6B9E7A", "BERS": "#E8926A", "LEED": "#2EB87A", "WELL": "#9B7FD4", "LEBR": "#C9973A", "HVAC": "#E05C5C", "CxA": "#5BAF82", "無障礙": "#BA7517", "其他": "#9FAAB8"};
+  const getAmt=p=>{
+    if(p.certPrices&&p.certPrices.length)return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
+    return parseFloat(String(p.price||'0').replace(/,/g,''))||0;
+  };
+  // Collect by certType from certPrices
+  const byType={};
+  projs.forEach(p=>{
+    (p.certPrices||[]).forEach(cp=>{
+      const t=cp.certType||'其他';
+      if(!byType[t])byType[t]={amt:0,count:0,projs:new Set()};
+      byType[t].amt+=(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0);
+      byType[t].projs.add(p.id);
+    });
+    // Projects with no certPrices but has price - count as 其他
+    if((!p.certPrices||!p.certPrices.length)&&p.price){
+      if(!byType['其他'])byType['其他']={amt:0,count:0,projs:new Set()};
+      byType['其他'].amt+=(parseFloat(String(p.price||'0').replace(/,/g,''))||0);
+      byType['其他'].projs.add(p.id);
+    }
+  });
+  Object.keys(byType).forEach(t=>byType[t].count=byType[t].projs.size);
+
+  if(!Object.keys(byType).length)return '<div class="hint">尚無認證類型資料（需在分項報價選擇認證類型）</div>';
+
+  const totalAmt=Object.values(byType).reduce((s,v)=>s+v.amt,0);
+  const fmtN=n=>n>=10000?(n/10000).toFixed(1)+'萬':n.toLocaleString();
+  const maxAmt=Math.max(...Object.values(byType).map(v=>v.amt),1);
+
+  // Bar chart for amounts
+  let bars='';
+  const sorted=Object.entries(byType).sort((a,b)=>b[1].amt-a[1].amt);
+  sorted.forEach(([t,v])=>{
+    const pct=Math.round(v.amt/maxAmt*100);
+    const color=colorMap[t]||'#9FAAB8';
+    const sharePct=totalAmt>0?Math.round(v.amt/totalAmt*100):0;
+    bars+='<div style="margin-bottom:10px">'
+      +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">'
+      +'<span style="font-weight:700;color:var(--text)">'+t+'</span>'
+      +'<span style="color:var(--text3)">NT$ '+fmtN(v.amt)+' <span style="background:'+color+'22;color:'+color+';padding:1px 6px;border-radius:10px;font-size:11px">'+sharePct+'%</span> · '+v.count+'案</span>'
+      +'</div>'
+      +'<div style="background:var(--border);border-radius:4px;height:10px;overflow:hidden">'
+      +'<div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:4px;transition:width .3s"></div>'
+      +'</div></div>';
+  });
+
+  // Pie chart SVG
+  const CX=80,CY=80,R=65;
+  let pieSVG='<svg viewBox="0 0 160 160" style="width:160px;height:160px;flex-shrink:0">';
+  let startAngle=-Math.PI/2;
+  const totalCount=Object.values(byType).reduce((s,v)=>s+v.count,0)||1;
+  sorted.forEach(([t,v])=>{
+    const angle=(v.count/totalCount)*2*Math.PI;
+    const endAngle=startAngle+angle;
+    const x1=CX+R*Math.cos(startAngle),y1=CY+R*Math.sin(startAngle);
+    const x2=CX+R*Math.cos(endAngle),y2=CY+R*Math.sin(endAngle);
+    const large=angle>Math.PI?1:0;
+    const color=colorMap[t]||'#9FAAB8';
+    if(angle>0.01)pieSVG+='<path d="M'+CX+','+CY+' L'+x1+','+y1+' A'+R+','+R+' 0 '+large+',1 '+x2+','+y2+' Z" fill="'+color+'" stroke="var(--white)" stroke-width="2"/>';
+    // Label
+    const midAngle=startAngle+angle/2;
+    const lx=CX+(R*0.65)*Math.cos(midAngle),ly=CY+(R*0.65)*Math.sin(midAngle);
+    if(angle>0.3)pieSVG+='<text x="'+lx+'" y="'+ly+'" text-anchor="middle" dominant-baseline="middle" font-size="9" fill="white" font-weight="700">'+t+'</text>';
+    startAngle=endAngle;
+  });
+  pieSVG+='</svg>';
+
+  return '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">'
+    +'<div style="flex:1;min-width:200px">'+bars+'</div>'
+    +pieSVG
+    +'</div>';
 }
 
 function openBaselineEditor(){
@@ -2190,7 +2266,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
       cpH+='<div style="color:var(--text3);font-size:12px;margin-bottom:8px">尚未新增分項報價</div>';
     }
     cpH+='</div>'
-      +'<div class="add-row"><input type="text" id="cp-new-name" placeholder="認證名稱（例：IB銀級）"><input type="text" id="cp-new-amt" placeholder="金額（NT$）" style="width:120px"><button class="btn btn-sm btn-p" onclick="addCPRowInForm()">＋ 新增</button></div>'
+      +'<div class="add-row" style="flex-wrap:wrap;gap:6px"><input type="text" id="cp-new-name" placeholder="項目名稱" style="flex:2;min-width:100px"><select id="cp-new-type" style="width:90px"><option value="">認證類型</option><option value="IB">IB</option><option value="EEWH">EEWH</option><option value="BERS">BERS</option><option value="LEED">LEED</option><option value="WELL">WELL</option><option value="LEBR">LEBR</option><option value="HVAC">HVAC</option><option value="CxA">CxA</option><option value="無障礙">無障礙</option><option value="其他">其他</option></select><input type="text" id="cp-new-amt" placeholder="金額" style="width:100px"><button class="btn btn-sm btn-p" onclick="addCPRowInForm()">＋ 新增</button></div>'
       +'<div class="hint" style="margin-top:4px">可直接編輯名稱與金額，儲存後自動加總</div></div>';
     h+=cpH;
   }
@@ -2210,7 +2286,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
       </div>
     </div>
     <div id="fsc-sec-stages" style="${stagesEnabled?'':'opacity:.4;pointer-events:none'}">
-      <div class="tag-sel" id="pf-stage-sel">${G.stages.map(s=>{
+      <div class="tag-sel" id="pf-stage-sel">${getProjStages(p).map(s=>{
         const isSelected=p.stage===s.id;
         return `<button class="topt ${isSelected?'sel':''}" data-sid="${s.id}" style="${isSelected?'background:'+s.color+'!important;border-color:'+s.color+'!important;color:white!important;':''}">${escH(s.name)}<span class="topt-rm" onclick="event.stopPropagation();rmStageFromForm('${s.id}',this)" title="從列表移除">✕</span></button>`;
       }).join('')}</div>
@@ -2618,19 +2694,23 @@ function rmContactFieldForm(ri,fi){
 function addCPRowInForm(){
   const nameInp=document.getElementById('cp-new-name');
   const amtInp=document.getElementById('cp-new-amt');
+  const typeInp=document.getElementById('cp-new-type');
   const name=(nameInp?.value||'').trim();if(!name)return;
   const amt=(amtInp?.value||'').trim();
+  const certType=(typeInp?.value||'').trim();
   const wrap=document.getElementById('cp-rows-wrap');if(!wrap)return;
   const i=wrap.querySelectorAll('[id^="cp-row-"]').length;
+  const cTypes=["IB", "EEWH", "BERS", "LEED", "WELL", "LEBR", "HVAC", "CxA", "無障礙", "其他"];
+  const selOpts=cTypes.map(t=>'<option value="'+t+'"'+(certType===t?' selected':'')+'>'+t+'</option>').join('');
   const div=document.createElement('div');
   div.id='cp-row-'+i;
-  div.style.cssText='display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px';
-  div.innerHTML='<input type="text" class="cp-name-inp" data-idx="'+i+'" value="'+escH(name)+'" placeholder="認證名稱">'
+  div.style.cssText='display:grid;grid-template-columns:1fr 80px 1fr auto;gap:6px;align-items:center;margin-bottom:6px';
+  div.innerHTML='<input type="text" class="cp-name-inp" data-idx="'+i+'" value="'+escH(name)+'" placeholder="項目名稱">'
+    +'<select class="cp-type-sel" data-idx="'+i+'"><option value="">類型</option>'+selOpts+'</select>'
     +'<input type="text" class="cp-amt-inp" data-idx="'+i+'" value="'+escH(amt)+'" placeholder="金額（NT$）">'
     +'<button class="btn btn-sm btn-danger" onclick="rmCPRowInForm('+i+')">✕</button>';
   wrap.appendChild(div);
-  if(nameInp)nameInp.value='';if(amtInp)amtInp.value='';
-  // Remove empty state message if exists
+  if(nameInp)nameInp.value='';if(amtInp)amtInp.value='';if(typeInp)typeInp.value='';
   const empty=wrap.querySelector('[style*="尚未新增"]');if(empty)empty.remove();
 }
 
@@ -2802,7 +2882,9 @@ function saveProjForm(isEdit,oldP){
     const amtInp=document.querySelector('.cp-amt-inp[data-idx="'+i+'"]');
     const certName=(nameInp.value||'').trim();
     const amount=(amtInp?.value||'').trim();
-    if(certName)newCertPrices.push({id:'cp-'+Date.now()+'-'+i,certName,amount,note:''});
+    const typeInp=document.querySelector('.cp-type-sel[data-idx="'+i+'"]');
+    const certType=(typeInp?.value||'').trim();
+    if(certName)newCertPrices.push({id:'cp-'+Date.now()+'-'+i,certName,certType,amount,note:''});
   });
   let autoPrice='';
   if(newCertPrices.length>0){
@@ -3316,6 +3398,8 @@ function initApp(){
               if(localP.certPrices&&localP.certPrices.length&&!(p.certPrices&&p.certPrices.length))p.certPrices=localP.certPrices;
               // Keep projSections from localStorage (user may have edited fields)
               if(localP.projSections)p.projSections=localP.projSections;
+              // Keep projStageIds from localStorage (user may have reordered stages)
+              if(localP.projStageIds)p.projStageIds=localP.projStageIds;
             }
           });
         }
@@ -3363,7 +3447,7 @@ function startApp(){
   document.getElementById('filter-year').addEventListener('change',renderProjects);
   document.getElementById('filter-month').addEventListener('change',renderProjects);
   document.getElementById('modal-close').addEventListener('click',closeModal);
-  document.getElementById('modal-ov').addEventListener('click',function(e){if(e.target===this)closeModal();});
+  // modal-ov click disabled to prevent accidental close while selecting text
   document.getElementById('diary-search-btn').addEventListener('click',renderDiary);
   document.getElementById('diary-clear-btn').addEventListener('click',()=>{document.getElementById('diary-from').value='';document.getElementById('diary-to').value='';document.getElementById('diary-kw').value='';renderDiary();});
   document.getElementById('stats-filter-btn').addEventListener('click',renderStatsPage);

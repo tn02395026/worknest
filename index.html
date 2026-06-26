@@ -1319,7 +1319,7 @@ function renderProjects(){
     if(fy&&String(p.year||new Date().getFullYear())!==fy)return false;
     if(fm&&String(p.month||1)!==fm)return false;
     if(activeFilter==='全部')return true;
-    if(activeFilter==='overdue')return isOD(p.followup)&&p.status==='active';
+    if(activeFilter==='overdue')return isOD(p.followup,p.followupTime)&&p.status==='active';
     if(activeFilter==='closed')return p.status==='closed';
     if(activeFilter==='lost')return p.status==='lost';
     return p.stage===activeFilter;

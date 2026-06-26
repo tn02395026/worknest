@@ -2294,8 +2294,11 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
     // Render all cert prices as editable rows
     if(certPrices.length){
       certPrices.forEach((cp,i)=>{
-        cpH+='<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px" id="cp-row-'+i+'">'
+        // Build certType options dynamically from G.certTypes
+        const typeOpts=(G.certTypes||[]).map(t=>'<option value="'+t+'"'+(cp.certType===t?' selected':'')+'>'+t+'</option>').join('');
+        cpH+='<div style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:6px;align-items:center;margin-bottom:6px" id="cp-row-'+i+'">'
           +'<input type="text" class="cp-name-inp" data-idx="'+i+'" value="'+escH(cp.certName||'')+'" placeholder="認證名稱（可編輯）">'
+          +'<select class="cp-type-sel" data-idx="'+i+'"><option value="">類型</option>'+typeOpts+'</select>'
           +'<input type="text" class="cp-amt-inp" data-idx="'+i+'" value="'+(cp.amount||'')+'" placeholder="金額（NT$）">'
           +'<button class="btn btn-sm btn-danger" onclick="rmCPRowInForm('+i+')">✕</button>'
           +'</div>';

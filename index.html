@@ -722,6 +722,7 @@ let G=JSON.parse(localStorage.getItem('zz5_data')||JSON.stringify(SEED));
 if(!G.tabOrder)G.tabOrder=['info','contacts','stages','checklist','todos','logs','notes'];
 if(!G.basicFieldDefs)G.basicFieldDefs=JSON.parse(JSON.stringify(DEFAULT_BASIC_FIELDS));
 // Ensure all projects have required fields
+if(!G.certTypes||!G.certTypes.length)G.certTypes=["IB", "EEWH", "BERS", "LEED", "WELL", "LEBR", "HVAC", "CxA", "無障礙", "其他"];
 if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
   // Migrate old flat array to per-year object
   const old=Array.isArray(G.revenueBaselines)?G.revenueBaselines:null;
@@ -900,7 +901,7 @@ function renderRevenuePage(){
 }
 
 function buildCertAnalysis(projs){
-  const certTypes=["IB", "EEWH", "BERS", "LEED", "WELL", "LEBR", "HVAC", "CxA", "無障礙", "其他"];
+  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","其他"]);
   const colorMap={"IB": "#5B8DD9", "EEWH": "#6B9E7A", "BERS": "#E8926A", "LEED": "#2EB87A", "WELL": "#9B7FD4", "LEBR": "#C9973A", "HVAC": "#E05C5C", "CxA": "#5BAF82", "無障礙": "#BA7517", "其他": "#9FAAB8"};
   const getAmt=p=>{
     if(p.certPrices&&p.certPrices.length)return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
@@ -2217,6 +2218,13 @@ function openProjModal(pid){
   openModal(isEdit?'編輯專案':'新增專案', buildProjFormHTML(p,years,tplH,sd,isEdit), ()=>saveProjForm(isEdit,p));
 
   setTimeout(()=>{
+    // Refresh cert type dropdowns with current G.certTypes
+    const cpTypeSelects=document.querySelectorAll('.cp-type-sel, #cp-new-type');
+    cpTypeSelects.forEach(sel=>{
+      const cur=sel.value;
+      sel.innerHTML='<option value="">認證類型</option>'+(G.certTypes||[]).map(t=>'<option value="'+t+'">'+t+'</option>').join('');
+      if(cur)sel.value=cur;
+    });
     // Stage selection
     document.querySelectorAll('#pf-stage-sel .topt').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -2730,7 +2738,7 @@ function addCPRowInForm(){
   const certType=(typeInp?.value||'').trim();
   const wrap=document.getElementById('cp-rows-wrap');if(!wrap)return;
   const i=wrap.querySelectorAll('[id^="cp-row-"]').length;
-  const cTypes=["IB", "EEWH", "BERS", "LEED", "WELL", "LEBR", "HVAC", "CxA", "無障礙", "其他"];
+  const cTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","其他"]);
   const selOpts=cTypes.map(t=>'<option value="'+t+'"'+(certType===t?' selected':'')+'>'+t+'</option>').join('');
   const div=document.createElement('div');
   div.id='cp-row-'+i;
@@ -3082,6 +3090,15 @@ function renderSettings(){
     </div>
   </div>
   <div class="set-card">
+    <div class="set-title">🏷️ 認證類型管理</div>
+    <div class="set-hint">管理分項報價的認證類型選項，新增或刪除後立即生效。</div>
+    <div id="cert-types-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+    <div class="add-row">
+      <input type="text" id="new-cert-type" placeholder="新增認證類型（例：BREEAM）">
+      <button class="btn btn-sm btn-p" onclick="addCertType()">＋ 新增</button>
+    </div>
+  </div>
+  <div class="set-card">
     <div class="set-title">👤 公版聯絡人欄位</div>
     <div class="set-hint">設定新增專案時，聯絡人區塊預設的角色和欄位。修改後只影響之後新增的專案。</div>
     <button class="btn btn-sm btn-p" onclick="openGlobalContactSettings()" style="margin-top:4px">✏️ 管理公版聯絡人</button>
@@ -3133,6 +3150,33 @@ function renderSettings(){
   document.getElementById('btn-new-tpl').addEventListener('click',openNewTpl);
   renderGBFList();setTimeout(bindGBFDrag,80);
   renderDefaultContactRoles();
+  renderCertTypesList();
+}
+
+function renderCertTypesList(){
+  const el=document.getElementById('cert-types-list');if(!el)return;
+  if(!G.certTypes||!G.certTypes.length)G.certTypes=["IB","EEWH","BERS","LEED","WELL","LEBR","HVAC","CxA","無障礙","其他"];
+  el.innerHTML=G.certTypes.map((t,i)=>
+    '<span class="chip" style="display:flex;align-items:center;gap:4px;padding:4px 10px">'
+    +t
+    +'<span onclick="rmCertType('+i+')" style="cursor:pointer;color:var(--red);margin-left:4px;font-size:12px">✕</span>'
+    +'</span>'
+  ).join('');
+}
+function addCertType(){
+  const inp=document.getElementById('new-cert-type');
+  const val=(inp?.value||'').trim();if(!val)return;
+  if(!G.certTypes)G.certTypes=[];
+  if(G.certTypes.includes(val)){alert('已存在此類型');return;}
+  G.certTypes.push(val);
+  inp.value='';
+  save();renderCertTypesList();
+}
+function rmCertType(i){
+  if(!G.certTypes)return;
+  if(!confirm('確定刪除「'+G.certTypes[i]+'」？已使用此類型的分項報價不受影響。'))return;
+  G.certTypes.splice(i,1);
+  save();renderCertTypesList();
 }
 
 function renderDefaultContactRoles(){

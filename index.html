@@ -2307,7 +2307,7 @@ function buildProjFormHTML(p,years,tplH,sd,isEdit){
       cpH+='<div style="color:var(--text3);font-size:12px;margin-bottom:8px">尚未新增分項報價</div>';
     }
     cpH+='</div>'
-      +'<div class="add-row" style="flex-wrap:wrap;gap:6px"><input type="text" id="cp-new-name" placeholder="項目名稱" style="flex:2;min-width:100px"><select id="cp-new-type" style="width:90px"><option value="">認證類型</option><option value="IB">IB</option><option value="EEWH">EEWH</option><option value="BERS">BERS</option><option value="LEED">LEED</option><option value="WELL">WELL</option><option value="LEBR">LEBR</option><option value="HVAC">HVAC</option><option value="CxA">CxA</option><option value="無障礙">無障礙</option><option value="其他">其他</option></select><input type="text" id="cp-new-amt" placeholder="金額" style="width:100px"><button class="btn btn-sm btn-p" onclick="addCPRowInForm()">＋ 新增</button></div>'
+      +'<div class="add-row" style="flex-wrap:wrap;gap:6px"><input type="text" id="cp-new-name" placeholder="項目名稱" style="flex:2;min-width:100px"><select id="cp-new-type" style="width:90px"><option value="">認證類型</option></select><input type="text" id="cp-new-amt" placeholder="金額" style="width:100px"><button class="btn btn-sm btn-p" onclick="addCPRowInForm()">＋ 新增</button></div>'
       +'<div class="hint" style="margin-top:4px">可直接編輯名稱與金額，儲存後自動加總</div></div>';
     h+=cpH;
   }

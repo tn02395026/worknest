@@ -901,8 +901,10 @@ function renderRevenuePage(){
 }
 
 function buildCertAnalysis(projs){
-  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","其他"]);
-  const colorMap={"IB": "#5B8DD9", "EEWH": "#6B9E7A", "BERS": "#E8926A", "LEED": "#2EB87A", "WELL": "#9B7FD4", "LEBR": "#C9973A", "HVAC": "#E05C5C", "CxA": "#5BAF82", "無障礙": "#BA7517", "其他": "#9FAAB8"};
+  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","LEBR","HVAC","CxA","無障礙","其他"]);
+  const BASE_COLORS=["#5B8DD9","#6B9E7A","#E8926A","#2EB87A","#9B7FD4","#C9973A","#E05C5C","#5BAF82","#BA7517","#9FAAB8","#4AA8D0","#C07040","#7060D0","#50A878","#D08050","#6090C0","#B05090","#40B0A0","#C0A030","#8070B0"];
+  const colorMap={"IB":"#5B8DD9","EEWH":"#6B9E7A","BERS":"#E8926A","LEED":"#2EB87A","WELL":"#9B7FD4","LEBR":"#C9973A","HVAC":"#E05C5C","CxA":"#5BAF82","無障礙":"#BA7517","其他":"#9FAAB8"};
+  certTypes.forEach((t,i)=>{if(!colorMap[t])colorMap[t]=BASE_COLORS[i%BASE_COLORS.length];});
   const getAmt=p=>{
     if(p.certPrices&&p.certPrices.length)return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
     return parseFloat(String(p.price||'0').replace(/,/g,''))||0;

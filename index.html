@@ -3465,6 +3465,12 @@ function initApp(){
         // Smart merge: use Firebase data but prefer localStorage for per-project customizations
         const localData=JSON.parse(localStorage.getItem('zz5_data')||'{}');
         G=remoteData;
+        // Restore top-level settings from localStorage if they exist
+        // certTypes: use localStorage if has data, else Firebase, else default
+        if(localData.certTypes&&localData.certTypes.length) G.certTypes=localData.certTypes;
+        else if(!G.certTypes||!G.certTypes.length) G.certTypes=["IB","EEWH","BERS","LEED","WELL","LEBR","HVAC","CxA","無障礙","其他"];
+        if(localData.basicFieldDefs&&localData.basicFieldDefs.length)G.basicFieldDefs=localData.basicFieldDefs;
+        if(localData.revenueBaselines&&!Array.isArray(localData.revenueBaselines))G.revenueBaselines=localData.revenueBaselines;
         // If localStorage is newer (has more data), merge per-project fields
         if(localData.projects){
           G.projects.forEach(p=>{

@@ -497,12 +497,7 @@ textarea{resize:vertical;min-height:140px}
           <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
           <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
         </select>
-        <select class="filter-sel" id="rev-status">
-          <option value="">全部狀態</option>
-          <option value="active">🌱 進行中</option>
-          <option value="closed">✅ 結案</option>
-          <option value="lost">❌ 流標</option>
-        </select>
+        <span style="font-size:12px;color:var(--text3);align-self:center">✅ 僅顯示結案專案</span>
         <button class="btn btn-sm btn-p" id="rev-filter-btn">🔍 套用</button>
       </div>
       <div id="rev-content"></div>
@@ -786,16 +781,16 @@ function getProjStages(p){
 function renderRevenuePage(){
   const selYear=document.getElementById('rev-year')?.value||'';
   const selMonth=document.getElementById('rev-month')?.value||'';
-  const selStatus=document.getElementById('rev-status')?.value||'';
   const getProjDate=p=>{
-    if(p.status==='closed'&&p.closedDate){const pt=p.closedDate.split('-');return{year:parseInt(pt[0]),month:parseInt(pt[1])};}
+    if(p.closedDate){const pt=p.closedDate.split('-');return{year:parseInt(pt[0]),month:parseInt(pt[1])};}
     return{year:p.year||new Date().getFullYear(),month:p.month||1};
   };
+  // 金額統計頁全部只看結案專案（有結案日期）
   let projs=G.projects.filter(p=>{
+    if(p.status!=='closed'||!p.closedDate)return false;
     const pd=getProjDate(p);
     if(selYear&&String(pd.year)!==selYear)return false;
     if(selMonth&&String(pd.month)!==selMonth)return false;
-    if(selStatus&&p.status!==selStatus)return false;
     return true;
   });
   const getAmt=p=>{
@@ -804,13 +799,15 @@ function renderRevenuePage(){
   };
   const fmtN=n=>n>=10000?(n/10000).toFixed(1)+'萬':n.toLocaleString();
   const totalAmt=projs.reduce((s,p)=>s+getAmt(p),0);
-  const activeAmt=projs.filter(p=>p.status==='active').reduce((s,p)=>s+getAmt(p),0);
-  const closedAmt=projs.filter(p=>p.status==='closed').reduce((s,p)=>s+getAmt(p),0);
-  const lostAmt=projs.filter(p=>p.status==='lost').reduce((s,p)=>s+getAmt(p),0);
+  const closedAmt=totalAmt;
   const chartYear=parseInt(selYear)||new Date().getFullYear();
   const monthlyData=Array.from({length:12},(_,i)=>{
     const m=i+1;
-    const ps=G.projects.filter(p=>{if(p.status!=="closed"||!p.closedDate)return false;const pt=p.closedDate.split("-");return parseInt(pt[0])===chartYear&&parseInt(pt[1])===m;});
+    const ps=G.projects.filter(p=>{
+      if(p.status!=='closed'||!p.closedDate)return false;
+      const pt=p.closedDate.split('-');
+      return parseInt(pt[0])===chartYear&&parseInt(pt[1])===m;
+    });
     return{month:m,amount:ps.reduce((s,p)=>s+getAmt(p),0),count:ps.length};
   });
   if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
@@ -886,17 +883,14 @@ function renderRevenuePage(){
   const el=document.getElementById('rev-content');if(!el)return;
   el.innerHTML=''
     +'<div class="stat-row">'
-    +'<div class="stat-card"><div class="stat-num" style="color:var(--blue)">NT$ '+fmtN(totalAmt)+'</div><div class="stat-label">📊 篩選總報價</div></div>'
-    +'<div class="stat-card"><div class="stat-num" style="color:var(--sage)">NT$ '+fmtN(activeAmt)+'</div><div class="stat-label">🌱 進行中</div></div>'
-    +'<div class="stat-card"><div class="stat-num" style="color:var(--gray)">NT$ '+fmtN(closedAmt)+'</div><div class="stat-label">✅ 結案</div></div>'
-    +'<div class="stat-card"><div class="stat-num" style="color:var(--red)">NT$ '+fmtN(lostAmt)+'</div><div class="stat-label">❌ 流標</div></div>'
-    +'<div class="stat-card"><div class="stat-num">'+projs.length+'</div><div class="stat-label">📋 專案數</div></div>'
+    +'<div class="stat-card"><div class="stat-num" style="color:var(--sage)">NT$ '+fmtN(totalAmt)+'</div><div class="stat-label">✅ 結案總業績</div></div>'
+    +'<div class="stat-card"><div class="stat-num">'+projs.length+'</div><div class="stat-label">📋 結案案數</div></div>'
     +'</div>'
     +'<div class="analytics-card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
     +'<div class="analytics-title" style="margin-bottom:0">📈 月度報價趨勢（'+chartYear+'年）</div>'
     +'<button class="btn btn-sm" onclick="openBaselineEditor()">⚙️ 設定月目標</button></div>'
     +legend+svg+'</div>'
-    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析（結案）</div>'+buildCertAnalysis(projs.filter(p=>p.status==='closed'&&p.closedDate))+'</div>'
+    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析（結案）</div>'+buildCertAnalysis(projs)+'</div>'
     +'<div class="analytics-card"><div class="analytics-title">💰 專案報價明細</div>'+projRows+'</div>';
 }
 

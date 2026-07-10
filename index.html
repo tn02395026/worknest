@@ -810,7 +810,7 @@ function renderRevenuePage(){
   const chartYear=parseInt(selYear)||new Date().getFullYear();
   const monthlyData=Array.from({length:12},(_,i)=>{
     const m=i+1;
-    const ps=G.projects.filter(p=>(p.year||new Date().getFullYear())===chartYear&&(p.month||1)===m);
+    const ps=G.projects.filter(p=>{const pd=getProjDate(p);return pd.year===chartYear&&pd.month===m;});
     return{month:m,amount:ps.reduce((s,p)=>s+getAmt(p),0),count:ps.length};
   });
   if(!G.revenueBaselines||Array.isArray(G.revenueBaselines)){
@@ -896,34 +896,27 @@ function renderRevenuePage(){
     +'<div class="analytics-title" style="margin-bottom:0">📈 月度報價趨勢（'+chartYear+'年）</div>'
     +'<button class="btn btn-sm" onclick="openBaselineEditor()">⚙️ 設定月目標</button></div>'
     +legend+svg+'</div>'
-    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析</div>'+buildCertAnalysis(G.projects.filter(p=>{const pd=getProjDate(p);if(selStatus&&p.status!==selStatus)return false;if(selYear&&String(pd.year)!==selYear)return false;if(selMonth&&String(pd.month)!==selMonth)return false;return true;}))+'</div>'
+    +'<div class="analytics-card"><div class="analytics-title" style="margin-bottom:12px">📊 認證類型分析</div>'+buildCertAnalysis(projs)+'</div>'
     +'<div class="analytics-card"><div class="analytics-title">💰 專案報價明細</div>'+projRows+'</div>';
 }
 
 function buildCertAnalysis(projs){
-  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","LEBR","HVAC","CxA","無障礙","其他"]);
-  const BASE_COLORS=["#5B8DD9","#6B9E7A","#E8926A","#2EB87A","#9B7FD4","#C9973A","#E05C5C","#5BAF82","#BA7517","#9FAAB8","#4AA8D0","#C07040","#7060D0","#50A878","#D08050","#6090C0","#B05090","#40B0A0","#C0A030","#8070B0"];
-  const colorMap={"IB":"#5B8DD9","EEWH":"#6B9E7A","BERS":"#E8926A","LEED":"#2EB87A","WELL":"#9B7FD4","LEBR":"#C9973A","HVAC":"#E05C5C","CxA":"#5BAF82","無障礙":"#BA7517","其他":"#9FAAB8"};
-  certTypes.forEach((t,i)=>{if(!colorMap[t])colorMap[t]=BASE_COLORS[i%BASE_COLORS.length];});
+  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","其他"]);
+  const colorMap={"IB": "#5B8DD9", "EEWH": "#6B9E7A", "BERS": "#E8926A", "LEED": "#2EB87A", "WELL": "#9B7FD4", "LEBR": "#C9973A", "HVAC": "#E05C5C", "CxA": "#5BAF82", "無障礙": "#BA7517", "其他": "#9FAAB8"};
   const getAmt=p=>{
     if(p.certPrices&&p.certPrices.length)return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
     return parseFloat(String(p.price||'0').replace(/,/g,''))||0;
   };
-  // Collect by certType from certPrices
+  // Collect by certType from certPrices only
+  // 「其他」= certPrices 有填但沒選認證類型；沒有填分項報價的案子不計入
   const byType={};
   projs.forEach(p=>{
     (p.certPrices||[]).forEach(cp=>{
-      const t=cp.certType||'其他';
+      const t=(cp.certType||'').trim()||'其他';
       if(!byType[t])byType[t]={amt:0,count:0,projs:new Set()};
       byType[t].amt+=(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0);
       byType[t].projs.add(p.id);
     });
-    // Projects with no certPrices but has price - count as 其他
-    if((!p.certPrices||!p.certPrices.length)&&p.price){
-      if(!byType['其他'])byType['其他']={amt:0,count:0,projs:new Set()};
-      byType['其他'].amt+=(parseFloat(String(p.price||'0').replace(/,/g,''))||0);
-      byType['其他'].projs.add(p.id);
-    }
   });
   Object.keys(byType).forEach(t=>byType[t].count=byType[t].projs.size);
 
@@ -1364,7 +1357,7 @@ function cardHTML(p){
     <div class="card-name">${escH(p.name)}</div>
     <div class="card-badges">
       <span class="badge" style="background:${st.color}22;color:${st.color}">${escH(st.name)}</span>
-      ${certSec&&certSec.enabled!==false?selCerts.slice(0,2).map(c=>`<span class="badge badge-cert">${escH(c)}</span>`).join(''):''}
+      ${certSec&&certSec.enabled!==false?selCerts.map(c=>`<span class="badge badge-cert">${escH(c)}</span>`).join(''):''}
     </div>
     ${attrSec&&attrSec.enabled!==false&&selAttrs.length?`<div class="card-attrs">${selAttrs.slice(0,3).map(a=>`<span class="badge badge-attr">${escH(a)}</span>`).join('')}</div>`:''}
     <div class="prog-track" style="margin-top:5px"><div class="prog-fill" style="width:${pct}%;background:${st.color}"></div></div>

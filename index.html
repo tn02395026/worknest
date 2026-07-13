@@ -898,8 +898,10 @@ function renderRevenuePage(){
 }
 
 function buildCertAnalysis(projs){
-  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","其他"]);
-  const colorMap={"IB": "#5B8DD9", "EEWH": "#6B9E7A", "BERS": "#E8926A", "LEED": "#2EB87A", "WELL": "#9B7FD4", "LEBR": "#C9973A", "HVAC": "#E05C5C", "CxA": "#5BAF82", "無障礙": "#BA7517", "其他": "#9FAAB8"};
+  const certTypes=(G.certTypes||["IB","EEWH","BERS","LEED","WELL","LEBR","HVAC","CxA","無障礙","其他"]);
+  const BASE_COLORS=["#5B8DD9","#6B9E7A","#E8926A","#2EB87A","#9B7FD4","#C9973A","#E05C5C","#5BAF82","#BA7517","#9FAAB8","#4AA8D0","#C07040","#7060D0","#50A878","#D08050","#6090C0","#B05090","#40B0A0","#C0A030","#8070B0"];
+  const colorMap={"IB":"#5B8DD9","EEWH":"#6B9E7A","BERS":"#E8926A","LEED":"#2EB87A","WELL":"#9B7FD4","LEBR":"#C9973A","HVAC":"#E05C5C","CxA":"#5BAF82","無障礙":"#BA7517","其他":"#9FAAB8"};
+  certTypes.forEach((t,i)=>{if(!colorMap[t])colorMap[t]=BASE_COLORS[i%BASE_COLORS.length];});
   const getAmt=p=>{
     if(p.certPrices&&p.certPrices.length)return p.certPrices.reduce((s,cp)=>s+(parseFloat(String(cp.amount||'0').replace(/,/g,''))||0),0);
     return parseFloat(String(p.price||'0').replace(/,/g,''))||0;
@@ -1258,7 +1260,7 @@ function importData(input){
 // ── TOP STATS ─────────────────────────────────────
 function renderTopStats(){
   const t=G.projects.length,a=G.projects.filter(p=>p.status==='active').length,
-    od=G.projects.filter(p=>isOD(p.followup,p.followupTime)&&p.status==='active').length,
+    od=G.projects.filter(p=>p.status==='active'&&((isOD(p.followup,p.followupTime))||(p.todos||[]).some(t=>!t.done&&isOD(t.followup,t.followupTime))||(p.logs||[]).some(l=>isOD(l.followup,l.followupTime)))).length,
     cl=G.projects.filter(p=>p.status==='closed').length,lo=G.projects.filter(p=>p.status==='lost').length;
   document.getElementById('stats-row').innerHTML=`
     <div class="stat-card"><div class="stat-num" style="color:var(--blue)">${t}</div><div class="stat-label">📋 全部</div></div>
@@ -1268,7 +1270,7 @@ function renderTopStats(){
     <div class="stat-card"><div class="stat-num" style="color:var(--gray)">${lo}</div><div class="stat-label">❌ 流標</div></div>`;
 }
 function renderAlerts(){
-  const od=G.projects.filter(p=>isOD(p.followup,p.followupTime)&&p.status==='active');
+  const od=G.projects.filter(p=>p.status==='active'&&((isOD(p.followup,p.followupTime))||(p.todos||[]).some(t=>!t.done&&isOD(t.followup,t.followupTime))||(p.logs||[]).some(l=>isOD(l.followup,l.followupTime))));
   const alertMsgs=['快去看看我！','我在等你哦！','別忘了我～','拜託處理我！'];
   const alertMsg=alertMsgs[Math.floor(Date.now()/5000)%alertMsgs.length];
   document.getElementById('alerts-area').innerHTML=od.length?`<div class="alert-banner alert-red" style="">🐾 有 ${od.length} 個專案在催你了！${alertMsg}</div>`:'';
@@ -1317,7 +1319,7 @@ function renderProjects(){
     if(fy&&String(p.year||new Date().getFullYear())!==fy)return false;
     if(fm&&String(p.month||1)!==fm)return false;
     if(activeFilter==='全部')return true;
-    if(activeFilter==='overdue')return isOD(p.followup,p.followupTime)&&p.status==='active';
+    if(activeFilter==='overdue')return p.status==='active'&&((isOD(p.followup,p.followupTime))||(p.todos||[]).some(t=>!t.done&&isOD(t.followup,t.followupTime))||(p.logs||[]).some(l=>isOD(l.followup,l.followupTime)));
     if(activeFilter==='closed')return p.status==='closed';
     if(activeFilter==='lost')return p.status==='lost';
     return p.stage===activeFilter;
@@ -1339,7 +1341,11 @@ function renderProjects(){
 }
 
 function cardHTML(p){
-  const st=stageById(p.stage),ov=isOD(p.followup,p.followupTime)&&p.status==='active';
+  const st=stageById(p.stage);
+  const _ovProject=isOD(p.followup,p.followupTime);
+  const _ovTodo=(p.todos||[]).some(t=>!t.done&&isOD(t.followup,t.followupTime));
+  const _ovLog=(p.logs||[]).some(l=>isOD(l.followup,l.followupTime));
+  const ov=p.status==='active'&&(_ovProject||_ovTodo||_ovLog);
   const ps=getProjStages(p),idx=ps.findIndex(s=>s.id===p.stage);
   const pct=ps.length?Math.round(((idx+1)/ps.length)*100):0;
   const secs=getEffSecs(p);

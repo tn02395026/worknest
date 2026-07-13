@@ -412,7 +412,7 @@ textarea{resize:vertical;min-height:140px}
 .toggle-knob{width:14px;height:14px;border-radius:50%;background:white;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle-track.on .toggle-knob{left:16px}
 /* ALARM */
-#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9999;max-width:320px;pointer-events:none;max-height:calc(100vh - 44px);overflow-y:auto;overflow-x:visible;display:flex;flex-direction:column;justify-content:flex-end;gap:9px;padding:4px 4px 0 0;scrollbar-width:thin;scrollbar-color:var(--sage) transparent}
+#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9999;max-width:320px;pointer-events:none;max-height:calc(100vh - 44px);overflow-y:auto;overflow-x:visible;scrollbar-width:thin;scrollbar-color:var(--sage) transparent}#alarm-inner{display:flex;flex-direction:column-reverse;gap:9px;pointer-events:none}
 .alarm-popup{background:var(--white);border-radius:var(--r);border:2px solid var(--sage);box-shadow:var(--shadow2);width:310px;animation:slideUp .3s ease;overflow:hidden;pointer-events:all}
 .alarm-top{background:linear-gradient(135deg,var(--sage),var(--sage2));padding:14px 15px 10px;text-align:center;overflow:visible}
 .alarm-mascot{font-size:42px;display:block;animation:bounce .8s ease-in-out infinite;line-height:1.2;margin:4px auto}
@@ -552,7 +552,7 @@ textarea{resize:vertical;min-height:140px}
   </div>
 </div>
 <div id="lightbox"><button id="lb-close">✕</button><img id="lb-img" src="" alt=""></div>
-<div id="alarm-container"></div>
+<div id="alarm-container"><div id="alarm-inner"></div></div>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -3410,7 +3410,7 @@ function checkAlarms(){
   items.forEach(item=>{_shownAlarms.add(item.id);showAlarmPopup(item);});
 }
 function showAlarmPopup(item){
-  const container=document.getElementById('alarm-container');
+  const container=document.getElementById('alarm-inner');
   const mascot=ALARM_MASCOTS[Math.floor(Math.random()*ALARM_MASCOTS.length)];
   const uid='ap'+Date.now()+Math.floor(Math.random()*9999);
   const div=document.createElement('div');div.className='alarm-popup';div.id=uid;div.dataset.aid=item.id;
@@ -3434,7 +3434,7 @@ function showAlarmPopup(item){
       </div>
     </div>`;
   container.appendChild(div);
-  container.scrollTop=container.scrollHeight;
+  const outerC=document.getElementById('alarm-container');if(outerC)outerC.scrollTop=outerC.scrollHeight;
 }
 function dismissAlarm(uid){
   const el=document.getElementById(uid);

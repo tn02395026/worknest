@@ -412,7 +412,7 @@ textarea{resize:vertical;min-height:140px}
 .toggle-knob{width:14px;height:14px;border-radius:50%;background:white;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .toggle-track.on .toggle-knob{left:16px}
 /* ALARM */
-#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9999;display:flex;flex-direction:column-reverse;gap:9px;max-width:320px;pointer-events:none}
+#alarm-container{position:fixed;bottom:22px;right:22px;z-index:9999;display:flex;flex-direction:column-reverse;gap:9px;max-width:320px;pointer-events:none;max-height:calc(100vh - 44px);overflow-y:auto;overflow-x:visible;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--sage) transparent}
 .alarm-popup{background:var(--white);border-radius:var(--r);border:2px solid var(--sage);box-shadow:var(--shadow2);width:310px;animation:slideUp .3s ease;overflow:hidden;pointer-events:all}
 .alarm-top{background:linear-gradient(135deg,var(--sage),var(--sage2));padding:14px 15px 10px;text-align:center;overflow:visible}
 .alarm-mascot{font-size:42px;display:block;animation:bounce .8s ease-in-out infinite;line-height:1.2;margin:4px auto}
